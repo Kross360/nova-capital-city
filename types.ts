@@ -1,4 +1,4 @@
-export type Category = 'VIP' | 'VEHICLE' | 'MANSION' | 'ORG' | 'SPECIAL';
+export type Category = 'VIP' | 'VEHICLE' | 'MANSION' | 'ORG' | 'SPECIAL' | 'COINS';
 
 export interface ShopItem {
   id: string;
@@ -48,12 +48,13 @@ export interface PaymentRequest {
   itemName: string;
   itemPrice: number;
   playerNick: string;
+  playerId: number; // Novo campo
   discordContact: string;
   proofImageUrl: string;
   status: PaymentStatus;
   adminNote?: string;
   createdAt: string;
-  messages: ChatMessage[]; // New field for chat
+  messages: ChatMessage[];
 }
 
 export interface ServerConfig {
@@ -66,4 +67,6 @@ export interface ServerConfig {
   homeBackgroundUrl: string;
   aboutImageUrl: string;
   newsDefaultImageUrl: string;
+  // Coins System
+  capiCoinPrice: number;
 }

@@ -2,35 +2,60 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { StorageService } from '../services/storage';
 import { ShopItem, ServerConfig } from '../types';
-import { QrCode, Upload, CheckCircle, ArrowLeft, CreditCard, Copy, MessageSquare, Search } from 'lucide-react';
+import { QrCode, Upload, CheckCircle, ArrowLeft, CreditCard, Copy, MessageSquare, Coins, Calculator, Minus, Plus } from 'lucide-react';
 import { useToast } from '../components/ToastSystem';
+import { useAuth } from '../contexts/AuthContext';
 
 export const Checkout: React.FC = () => {
   const { itemId } = useParams<{ itemId: string }>();
   const navigate = useNavigate();
   const { addToast } = useToast();
+  const { profile } = useAuth();
   
   const [item, setItem] = useState<ShopItem | undefined>(undefined);
   const [playerNick, setPlayerNick] = useState('');
+  const [gameId, setGameId] = useState('');
   const [discordContact, setDiscordContact] = useState('');
   const [proofImage, setProofImage] = useState<string>('');
   const [submitted, setSubmitted] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string>('');
   const [config, setConfig] = useState<ServerConfig>({} as ServerConfig);
 
+  // Dynamic Coins Logic
+  const isCoinPurchase = itemId === 'capicoins';
+  const [coinQuantity, setCoinQuantity] = useState(100);
+
   useEffect(() => {
     StorageService.getConfig().then(setConfig);
-    if (itemId) {
-      StorageService.getShopItemById(itemId).then((foundItem) => {
-         if (foundItem) {
-            setItem(foundItem);
-         } else {
-            navigate('/shop');
-            addToast('Item não encontrado.', 'error');
-         }
-      });
+    
+    // Autofill from Profile
+    if (profile) {
+      setPlayerNick(profile.rp_nick);
+      setDiscordContact(profile.discord);
+      if (profile.game_id) setGameId(profile.game_id.toString());
     }
-  }, [itemId, navigate, addToast]);
+
+    if (itemId) {
+      if (itemId === 'capicoins') {
+         // Create a virtual item for Coins
+         // We will update price dynamically
+      } else {
+        StorageService.getShopItemById(itemId).then((foundItem) => {
+           if (foundItem) {
+              setItem(foundItem);
+           } else {
+              navigate('/shop');
+              addToast('Item não encontrado.', 'error');
+           }
+        });
+      }
+    }
+  }, [itemId, navigate, addToast, profile]);
+
+  // Calculate dynamic price
+  const currentTotal = isCoinPurchase 
+    ? coinQuantity * (config.capiCoinPrice || 1) 
+    : (item?.price || 0);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -59,17 +84,26 @@ export const Checkout: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!item || !playerNick || !proofImage || !discordContact) {
+    
+    // Check item data
+    if (!isCoinPurchase && !item) return;
+    
+    if (!playerNick || !gameId || !proofImage || !discordContact) {
       addToast("Por favor, preencha todos os campos e envie o comprovante.", 'error');
       return;
     }
 
+    const finalItemName = isCoinPurchase ? `${coinQuantity}x CapiCoins` : item!.name;
+    const finalItemId = isCoinPurchase ? `coins_${coinQuantity}_${Date.now()}` : item!.id;
+    const finalPrice = currentTotal;
+
     try {
       const data = await StorageService.addPayment({
-        itemId: item.id,
-        itemName: item.name,
-        itemPrice: item.price,
+        itemId: finalItemId,
+        itemName: finalItemName,
+        itemPrice: finalPrice,
         playerNick,
+        playerId: parseInt(gameId),
         discordContact,
         proofImageUrl: proofImage,
         status: 'PENDING'
@@ -128,7 +162,8 @@ export const Checkout: React.FC = () => {
     );
   }
 
-  if (!item) return <div className="p-20 text-center text-white">Carregando item...</div>;
+  // Loading state if not coins and no item yet
+  if (!isCoinPurchase && !item) return <div className="p-20 text-center text-white">Carregando item...</div>;
 
   return (
     <div className="py-12 px-4 max-w-4xl mx-auto">
@@ -141,16 +176,53 @@ export const Checkout: React.FC = () => {
         <div className="md:col-span-1 space-y-6">
           <div className="bg-dark-800 rounded-xl p-6 border border-white/5 sticky top-24">
             <h3 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Resumo do Pedido</h3>
-            <div className="mb-4 rounded-lg overflow-hidden h-32">
-              <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+            
+            {/* ITEM IMAGE / ICON */}
+            <div className="mb-4 rounded-lg overflow-hidden h-32 bg-dark-900 flex items-center justify-center border border-white/5 relative">
+              {isCoinPurchase ? (
+                 <>
+                   <div className="absolute inset-0 bg-yellow-500/10 animate-pulse"></div>
+                   <Coins size={64} className="text-yellow-400 drop-shadow-lg" />
+                 </>
+              ) : (
+                <img src={item!.imageUrl} alt={item!.name} className="w-full h-full object-cover" />
+              )}
             </div>
-            <h4 className="font-bold text-white text-xl mb-1">{item.name}</h4>
-            <span className="inline-block bg-brand-900/50 text-brand-300 text-xs px-2 py-1 rounded border border-brand-500/20 mb-4">
-              {item.category}
+
+            <h4 className="font-bold text-white text-xl mb-1">{isCoinPurchase ? 'Pacote CapiCoins' : item!.name}</h4>
+            
+            <span className={`inline-block text-xs px-2 py-1 rounded border mb-4 ${
+              isCoinPurchase 
+                ? 'bg-yellow-900/50 text-yellow-300 border-yellow-500/20' 
+                : 'bg-brand-900/50 text-brand-300 border-brand-500/20'
+            }`}>
+              {isCoinPurchase ? 'MOEDA PREMIUM' : item!.category}
             </span>
-            <div className="flex justify-between items-center text-gray-300 mb-2">
-              <span>Valor:</span>
-              <span className="text-white font-bold text-xl">R$ {item.price.toFixed(2)}</span>
+
+            {/* DYNAMIC CALCULATOR FOR COINS */}
+            {isCoinPurchase && (
+               <div className="mb-6 bg-dark-900 p-3 rounded-lg border border-yellow-500/20">
+                  <label className="block text-gray-400 text-xs mb-2 text-center">Quantidade de Coins</label>
+                  <div className="flex items-center justify-between gap-2">
+                     <button onClick={() => setCoinQuantity(Math.max(1, coinQuantity - 10))} className="p-1 text-gray-400 hover:text-white bg-white/5 rounded"><Minus size={16}/></button>
+                     <input 
+                      type="number" 
+                      min="1"
+                      value={coinQuantity} 
+                      onChange={e => setCoinQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-20 bg-transparent text-center text-white font-bold focus:outline-none"
+                     />
+                     <button onClick={() => setCoinQuantity(coinQuantity + 10)} className="p-1 text-gray-400 hover:text-white bg-white/5 rounded"><Plus size={16}/></button>
+                  </div>
+                  <div className="text-center text-xs text-gray-500 mt-2">
+                     1 Coin = R$ {config.capiCoinPrice?.toFixed(2)}
+                  </div>
+               </div>
+            )}
+
+            <div className="flex justify-between items-center text-gray-300 mb-2 pt-2 border-t border-white/5">
+              <span>Total a Pagar:</span>
+              <span className="text-white font-bold text-2xl">R$ {currentTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
@@ -208,6 +280,17 @@ export const Checkout: React.FC = () => {
                   />
                 </div>
                 <div>
+                  <label className="block text-gray-400 text-sm font-medium mb-2">ID no Jogo *</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="Ex: 123"
+                    value={gameId}
+                    onChange={(e) => setGameId(e.target.value)}
+                    className="w-full bg-dark-900 border border-dark-700 rounded-lg p-3 text-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+                  />
+                </div>
+                <div className="md:col-span-2">
                   <label className="block text-gray-400 text-sm font-medium mb-2">Discord para Contato *</label>
                   <input
                     type="text"

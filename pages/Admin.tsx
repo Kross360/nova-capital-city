@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StorageService } from '../services/storage';
 import { ShopItem, Rule, NewsPost, Category, PaymentRequest, ServerConfig } from '../types';
-import { Trash2, Plus, LogOut, LayoutGrid, ScrollText, Newspaper, CreditCard, CheckCircle, XCircle, Eye, RefreshCw, Link as LinkIcon, Settings, Save, Smartphone, Monitor, MessageCircle, QrCode, Image as ImageIcon, Send, Shield, User } from 'lucide-react';
+import { Trash2, Plus, LogOut, LayoutGrid, ScrollText, Newspaper, CreditCard, CheckCircle, XCircle, Eye, RefreshCw, Link as LinkIcon, Settings, Save, Smartphone, Monitor, MessageCircle, QrCode, Image as ImageIcon, Send, Shield, User, Upload, Loader2, Coins } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ToastSystem';
 
 export const Admin: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Inicializa o estado verificando se já existe uma sessão administrativa salva
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return sessionStorage.getItem('capital_admin_auth') === 'true';
+  });
+  
   const [password, setPassword] = useState('');
   const [activeTab, setActiveTab] = useState<'SHOP' | 'RULES' | 'NEWS' | 'PAYMENTS' | 'CONFIG' | 'IMAGES'>('SHOP');
+  const [uploading, setUploading] = useState(false);
   
   // Data State
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
@@ -23,7 +28,8 @@ export const Admin: React.FC = () => {
     pixQrCodeUrl: '',
     homeBackgroundUrl: '',
     aboutImageUrl: '',
-    newsDefaultImageUrl: ''
+    newsDefaultImageUrl: '',
+    capiCoinPrice: 1.0
   });
 
   // Shop Form
@@ -31,7 +37,7 @@ export const Admin: React.FC = () => {
   const [newItemDesc, setNewItemDesc] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
   const [newItemCat, setNewItemCat] = useState<Category>('VIP');
-  const [newItemImage, setNewItemImage] = useState<string>('');
+  const [newItemImageUrl, setNewItemImageUrl] = useState('');
 
   // Rule Form
   const [newRuleTitle, setNewRuleTitle] = useState('');
@@ -42,7 +48,7 @@ export const Admin: React.FC = () => {
   const [newNewsTitle, setNewNewsTitle] = useState('');
   const [newNewsSummary, setNewNewsSummary] = useState('');
   const [newNewsContent, setNewNewsContent] = useState('');
-  const [newNewsImage, setNewNewsImage] = useState('');
+  const [newNewsImageUrl, setNewNewsImageUrl] = useState('');
 
   // Modals
   const [viewingProof, setViewingProof] = useState<string | null>(null);
@@ -113,6 +119,8 @@ export const Admin: React.FC = () => {
     e.preventDefault();
     if (password === 'CAPITAL2025') {
       setIsAuthenticated(true);
+      // Salva a autenticação na sessão
+      sessionStorage.setItem('capital_admin_auth', 'true');
       addToast('Bem-vindo ao painel administrativo!', 'success');
     } else {
       addToast('Senha incorreta!', 'error');
@@ -121,6 +129,8 @@ export const Admin: React.FC = () => {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    // Remove a autenticação da sessão ao sair manualmente
+    sessionStorage.removeItem('capital_admin_auth');
     navigate('/');
     addToast('Logout realizado com sucesso.', 'info');
   };
@@ -130,16 +140,28 @@ export const Admin: React.FC = () => {
   // Shop
   const addShopItem = async () => {
     if (!newItemName || !newItemPrice) return addToast("Preencha nome e preço.", 'error');
-    await StorageService.addShopItem({
-      name: newItemName,
-      description: newItemDesc,
-      price: parseFloat(newItemPrice),
-      category: newItemCat,
-      imageUrl: newItemImage || `https://picsum.photos/400/300?random=${Date.now()}`
-    });
-    setNewItemName(''); setNewItemDesc(''); setNewItemPrice(''); setNewItemImage('');
-    addToast('Item adicionado à loja!', 'success');
-    refreshAll();
+    
+    setUploading(true);
+    // Use URL provided or fallback
+    const finalImageUrl = newItemImageUrl || `https://picsum.photos/400/300?random=${Date.now()}`;
+    
+    try {
+      await StorageService.addShopItem({
+        name: newItemName,
+        description: newItemDesc,
+        price: parseFloat(newItemPrice),
+        category: newItemCat,
+        imageUrl: finalImageUrl
+      });
+
+      setNewItemName(''); setNewItemDesc(''); setNewItemPrice(''); setNewItemImageUrl('');
+      addToast('Item adicionado à loja!', 'success');
+      refreshAll();
+    } catch (e: any) {
+      addToast('Erro ao salvar: ' + e.message, 'error');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const deleteShopItem = async (id: string) => {
@@ -170,17 +192,27 @@ export const Admin: React.FC = () => {
   // News
   const addNews = async () => {
     if(!newNewsTitle || !newNewsSummary) return addToast("Preencha título e resumo da notícia.", 'error');
-    await StorageService.addNews({
-      title: newNewsTitle,
-      summary: newNewsSummary,
-      content: newNewsContent,
-      author: 'Admin',
-      date: new Date().toLocaleDateString('pt-BR'),
-      imageUrl: newNewsImage || `https://picsum.photos/800/400?random=${Date.now()}`
-    });
-    setNewNewsTitle(''); setNewNewsSummary(''); setNewNewsContent(''); setNewNewsImage('');
-    addToast('Notícia publicada!', 'success');
-    refreshAll();
+    
+    setUploading(true);
+    const finalImageUrl = newNewsImageUrl || `https://picsum.photos/800/400?random=${Date.now()}`;
+
+    try {
+      await StorageService.addNews({
+        title: newNewsTitle,
+        summary: newNewsSummary,
+        content: newNewsContent,
+        author: 'Admin',
+        date: new Date().toLocaleDateString('pt-BR'),
+        imageUrl: finalImageUrl
+      });
+      setNewNewsTitle(''); setNewNewsSummary(''); setNewNewsContent(''); setNewNewsImageUrl('');
+      addToast('Notícia publicada!', 'success');
+      refreshAll();
+    } catch (e: any) {
+       addToast('Erro ao salvar notícia: ' + e.message, 'error');
+    } finally {
+       setUploading(false);
+    }
   };
 
   const deleteNews = async (id: string) => {
@@ -284,6 +316,11 @@ export const Admin: React.FC = () => {
                 </button>
               </div>
 
+              <div className="bg-blue-900/20 border border-blue-500/20 p-4 rounded text-sm text-blue-200 mb-4">
+                 <p className="font-bold flex items-center gap-2"><ImageIcon size={16}/> Nota sobre Imagens</p>
+                 <p className="mt-1">Todas as imagens do site (exceto comprovantes) agora utilizam URLs diretas. Você pode usar links do Imgur, Discord, etc.</p>
+              </div>
+
               <div className="grid gap-8">
                 {/* Home Background */}
                 <div className="bg-dark-900/50 p-6 rounded-xl border border-white/5">
@@ -314,7 +351,6 @@ export const Admin: React.FC = () => {
                     <ImageIcon className="text-brand-500" size={20}/>
                     Imagem Principal: Sobre Nós
                   </h3>
-                  <p className="text-gray-400 text-sm mb-4">Esta imagem aparecerá na página "Sobre" ao lado do texto de história.</p>
                    <div className="grid md:grid-cols-3 gap-6">
                     <div className="md:col-span-2">
                        <label className="block text-sm font-medium text-gray-400 mb-2">URL da Imagem</label>
@@ -325,33 +361,10 @@ export const Admin: React.FC = () => {
                         className="w-full bg-dark-800 border border-brand-500/50 rounded px-4 py-2 text-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
                         placeholder="https://i.imgur.com/..."
                        />
-                       <p className="text-xs text-gray-500 mt-2">Dica: Use links diretos do Imgur ou Discord.</p>
                     </div>
                     <div className="h-32 rounded-lg overflow-hidden border border-white/20 bg-dark-950 flex items-center justify-center relative">
                         {config.aboutImageUrl ? (
                           <img src={config.aboutImageUrl} className="w-full h-full object-cover" alt="Preview"/>
-                        ) : <span className="text-gray-600 text-xs">Sem Imagem</span>}
-                    </div>
-                   </div>
-                </div>
-                
-                 {/* News Image */}
-                 <div className="bg-dark-900/50 p-6 rounded-xl border border-white/5">
-                  <h3 className="text-lg font-semibold text-white mb-4">Padrão para Notícias</h3>
-                   <div className="grid md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-400 mb-2">URL da Imagem</label>
-                      <input 
-                        type="text" 
-                        value={config.newsDefaultImageUrl} 
-                        onChange={(e) => setConfig({...config, newsDefaultImageUrl: e.target.value})} 
-                        className="w-full bg-dark-800 border border-dark-600 rounded px-4 py-2 text-white focus:border-brand-500 focus:outline-none"
-                        placeholder="https://..."
-                      />
-                    </div>
-                     <div className="h-32 rounded-lg overflow-hidden border border-white/20 bg-dark-950 flex items-center justify-center relative">
-                        {config.newsDefaultImageUrl ? (
-                          <img src={config.newsDefaultImageUrl} className="w-full h-full object-cover" alt="Preview"/>
                         ) : <span className="text-gray-600 text-xs">Sem Imagem</span>}
                     </div>
                    </div>
@@ -369,6 +382,29 @@ export const Admin: React.FC = () => {
               </div>
 
               <div className="grid gap-6">
+                
+                {/* ECONOMY CONFIG */}
+                <div className="bg-dark-900/50 p-6 rounded-xl border border-brand-500/20 shadow-lg shadow-brand-500/5">
+                   <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                      <Coins className="text-yellow-500" size={20}/> Economia (CapiCoins)
+                   </h3>
+                   <div>
+                        <label className="block text-gray-400 text-sm mb-1">Preço unitário (R$)</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                          <input 
+                            type="number" 
+                            step="0.01" 
+                            min="0.01"
+                            value={config.capiCoinPrice} 
+                            onChange={e => setConfig({...config, capiCoinPrice: parseFloat(e.target.value)})} 
+                            className="w-full bg-dark-800 border border-dark-600 p-2 pl-10 rounded text-white focus:border-brand-500 focus:outline-none"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">Valor que será cobrado por cada 1 CapiCoin na loja.</p>
+                   </div>
+                </div>
+
                 <div className="bg-dark-900/50 p-6 rounded-xl border border-white/5">
                    <h3 className="text-lg font-semibold text-white mb-4">Downloads</h3>
                    <div className="space-y-4">
@@ -417,14 +453,33 @@ export const Admin: React.FC = () => {
                  <input placeholder="Preço" type="number" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
                  <select value={newItemCat} onChange={e => setNewItemCat(e.target.value as Category)} className="bg-dark-800 border border-dark-600 p-2 rounded text-white">
                     <option value="VIP">VIP</option>
+                    <option value="COINS">Pacote CapiCoins</option>
                     <option value="VEHICLE">Veículo</option>
                     <option value="MANSION">Mansão</option>
                     <option value="ORG">Organização</option>
                     <option value="SPECIAL">Especial</option>
                  </select>
                  <input placeholder="Descrição" value={newItemDesc} onChange={e => setNewItemDesc(e.target.value)} className="bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
-                 <input placeholder="Img URL" value={newItemImage} onChange={e => setNewItemImage(e.target.value)} className="col-span-1 md:col-span-2 bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
-                 <button onClick={addShopItem} className="col-span-1 md:col-span-2 bg-green-600 text-white px-4 py-2 rounded font-bold">Adicionar</button>
+                 
+                 {/* Image URL Input */}
+                 <div className="col-span-1 md:col-span-2">
+                    <input 
+                      placeholder="URL da Imagem (Ex: https://i.imgur.com/...)" 
+                      value={newItemImageUrl} 
+                      onChange={e => setNewItemImageUrl(e.target.value)} 
+                      className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white"
+                    />
+                    {newItemImageUrl && (
+                      <div className="mt-2 h-20 w-20 rounded overflow-hidden border border-white/10">
+                         <img src={newItemImageUrl} className="w-full h-full object-cover" alt="Preview"/>
+                      </div>
+                    )}
+                 </div>
+
+                 <button onClick={addShopItem} disabled={uploading} className="col-span-1 md:col-span-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded font-bold flex items-center justify-center gap-2">
+                    {uploading ? <Loader2 className="animate-spin"/> : <Plus size={18}/>}
+                    {uploading ? 'Salvando...' : 'Adicionar Item'}
+                 </button>
                </div>
                
                <div className="space-y-2">
@@ -433,7 +488,10 @@ export const Admin: React.FC = () => {
                      <div className="flex items-center gap-3">
                         <img src={i.imageUrl} className="w-10 h-10 rounded object-cover" />
                         <div>
-                            <p className="font-bold">{i.name}</p>
+                            <p className="font-bold flex items-center gap-2">
+                              {i.name} 
+                              {i.category === 'COINS' && <Coins size={14} className="text-yellow-500"/>}
+                            </p>
                             <p className="text-xs text-gray-500">{i.category} - R$ {i.price}</p>
                         </div>
                      </div>
@@ -444,6 +502,7 @@ export const Admin: React.FC = () => {
             </div>
           )}
 
+          {/* ... resto do código (Tabs RULES, NEWS, PAYMENTS mantidos iguais) ... */}
           {/* TAB: RULES */}
           {activeTab === 'RULES' && (
              <div>
@@ -475,8 +534,26 @@ export const Admin: React.FC = () => {
                     <input placeholder="Título" value={newNewsTitle} onChange={e => setNewNewsTitle(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
                     <input placeholder="Resumo" value={newNewsSummary} onChange={e => setNewNewsSummary(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
                     <textarea placeholder="Conteúdo" value={newNewsContent} onChange={e => setNewNewsContent(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white h-24"/>
-                    <input placeholder="Img URL" value={newNewsImage} onChange={e => setNewNewsImage(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
-                    <button onClick={addNews} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Adicionar</button>
+                    
+                    {/* Image URL Input for News */}
+                    <div>
+                      <input 
+                        placeholder="URL da Imagem de Capa" 
+                        value={newNewsImageUrl} 
+                        onChange={e => setNewNewsImageUrl(e.target.value)} 
+                        className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white"
+                      />
+                       {newNewsImageUrl && (
+                        <div className="mt-2 h-32 w-full max-w-xs rounded overflow-hidden border border-white/10">
+                           <img src={newNewsImageUrl} className="w-full h-full object-cover" alt="Preview"/>
+                        </div>
+                      )}
+                    </div>
+
+                    <button onClick={addNews} disabled={uploading} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded font-bold flex items-center gap-2 justify-center w-full">
+                       {uploading ? <Loader2 className="animate-spin"/> : <Plus size={18}/>}
+                       {uploading ? 'Publicando...' : 'Publicar Notícia'}
+                    </button>
                 </div>
                 <div className="space-y-2">
                  {news.map(n => (
@@ -520,8 +597,9 @@ export const Admin: React.FC = () => {
                            <h3 className="font-bold text-white text-lg">{payment.itemName} <span className="text-brand-400 text-sm font-normal">({payment.itemPrice.toFixed(2)} R$)</span></h3>
                            <div className="text-sm text-gray-400 mt-1 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
                              <p>Nick: <span className="text-white">{payment.playerNick}</span></p>
+                             <p>ID: <span className="text-white font-mono font-bold">{payment.playerId}</span></p>
                              <p>Discord: <span className="text-white">{payment.discordContact}</span></p>
-                             <p className="col-span-full text-xs font-mono mt-1 text-gray-600">ID: {payment.id}</p>
+                             <p className="col-span-full text-xs font-mono mt-1 text-gray-600">ID Pedido: {payment.id}</p>
                            </div>
                         </div>
                         

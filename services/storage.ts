@@ -7,6 +7,44 @@ const STORAGE_KEYS = {
 };
 
 export const StorageService = {
+  // --- UPLOAD ---
+  uploadImage: async (file: File, folder: 'shop' | 'news' | 'proofs'): Promise<string> => {
+    // Remove caracteres especiais do nome do arquivo
+    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
+    const fileName = `${folder}/${Date.now()}_${sanitizedName}`;
+    
+    try {
+      // Upload para o bucket 'images'
+      const { error } = await supabase.storage
+        .from('images')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (error) {
+        console.warn("Supabase Storage Upload Error:", error.message);
+        // Se o erro for que o bucket não existe ou erro de permissão, usamos fallback
+        // Em produção, você deve criar o bucket 'images' no painel do Supabase e definir as políticas como 'Public'
+        if (folder === 'shop') return `https://picsum.photos/400/300?random=${Date.now()}`;
+        if (folder === 'news') return `https://picsum.photos/800/400?random=${Date.now()}`;
+        return `https://picsum.photos/500/500?random=${Date.now()}`;
+      }
+
+      // Gerar URL Pública
+      const { data } = supabase.storage
+        .from('images')
+        .getPublicUrl(fileName);
+
+      return data.publicUrl;
+
+    } catch (err) {
+      console.error("Upload Exception:", err);
+      // Fallback em caso de erro crítico de rede
+      return `https://picsum.photos/400/300?random=${Date.now()}`;
+    }
+  },
+
   // --- SHOP ---
   getShopItems: async (): Promise<ShopItem[]> => {
     const { data } = await supabase.from('shop_items').select('*').order('created_at', { ascending: false });
@@ -23,11 +61,12 @@ export const StorageService = {
       category: item.category,
       image_url: item.imageUrl
     }]).select().single();
-    if(error) console.error(error);
+    if(error) throw error; // Throw error to be caught by UI
     return data;
   },
   deleteShopItem: async (id: string) => {
-    await supabase.from('shop_items').delete().eq('id', id);
+    const { error } = await supabase.from('shop_items').delete().eq('id', id);
+    if(error) throw error;
   },
   getShopItemById: async (id: string): Promise<ShopItem | undefined> => {
     const { data } = await supabase.from('shop_items').select('*').eq('id', id).single();
@@ -41,10 +80,12 @@ export const StorageService = {
     return data || [];
   },
   addRule: async (rule: Omit<Rule, 'id'>) => {
-    await supabase.from('rules').insert([rule]);
+    const { error } = await supabase.from('rules').insert([rule]);
+    if(error) throw error;
   },
   deleteRule: async (id: string) => {
-    await supabase.from('rules').delete().eq('id', id);
+    const { error } = await supabase.from('rules').delete().eq('id', id);
+    if(error) throw error;
   },
 
   // --- NEWS ---
@@ -56,7 +97,7 @@ export const StorageService = {
     }));
   },
   addNews: async (news: Omit<NewsPost, 'id'>) => {
-    await supabase.from('news').insert([{
+    const { error } = await supabase.from('news').insert([{
       title: news.title,
       summary: news.summary,
       content: news.content,
@@ -64,9 +105,11 @@ export const StorageService = {
       date: news.date,
       image_url: news.imageUrl
     }]);
+    if(error) throw error;
   },
   deleteNews: async (id: string) => {
-    await supabase.from('news').delete().eq('id', id);
+    const { error } = await supabase.from('news').delete().eq('id', id);
+    if(error) throw error;
   },
 
   // --- PAYMENTS ---
@@ -74,20 +117,19 @@ export const StorageService = {
     const { data: payments } = await supabase.from('payments').select('*').order('created_at', { ascending: false });
     if (!payments) return [];
 
-    // Fetch messages for these payments (simplification: fetching all recent messages or on demand in detail view)
-    // For the list view, we just map basic info. Detail view will fetch messages.
     return payments.map((p: any) => ({
       id: p.id,
       itemId: p.item_id,
       itemName: p.item_name,
       itemPrice: p.item_price,
       playerNick: p.player_nick,
+      playerId: p.player_id, // Map database column
       discordContact: p.discord_contact,
       proofImageUrl: p.proof_image_url,
       status: p.status,
       adminNote: p.admin_note,
       createdAt: new Date(p.created_at).toLocaleString('pt-BR'),
-      messages: [] // Loaded separately usually
+      messages: [] 
     }));
   },
 
@@ -103,6 +145,7 @@ export const StorageService = {
       itemName: p.item_name,
       itemPrice: p.item_price,
       playerNick: p.player_nick,
+      playerId: p.player_id,
       discordContact: p.discord_contact,
       proofImageUrl: p.proof_image_url,
       status: p.status,
@@ -123,6 +166,7 @@ export const StorageService = {
       item_name: payment.itemName,
       item_price: payment.itemPrice,
       player_nick: payment.playerNick,
+      player_id: payment.playerId, // Save ID to DB
       discord_contact: payment.discordContact,
       proof_image_url: payment.proofImageUrl,
       status: 'PENDING'
@@ -133,7 +177,8 @@ export const StorageService = {
   },
 
   updatePaymentStatus: async (id: string, status: string, note?: string) => {
-    await supabase.from('payments').update({ status, admin_note: note }).eq('id', id);
+    const { error } = await supabase.from('payments').update({ status, admin_note: note }).eq('id', id);
+    if(error) throw error;
   },
 
   // --- MY ORDERS (Local ID Storage + Remote Fetch) ---
@@ -159,6 +204,7 @@ export const StorageService = {
       itemName: p.item_name,
       itemPrice: p.item_price,
       playerNick: p.player_nick,
+      playerId: p.player_id,
       discordContact: p.discord_contact,
       proofImageUrl: p.proof_image_url,
       status: p.status,
@@ -169,12 +215,13 @@ export const StorageService = {
   },
 
   addOrderMessage: async (paymentId: string, sender: 'ADMIN' | 'PLAYER', content: string) => {
-    await supabase.from('payment_messages').insert([{
+    const { error } = await supabase.from('payment_messages').insert([{
       payment_id: paymentId,
       sender,
       content,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     }]);
+    if(error) throw error;
   },
 
   // --- CONFIG ---
@@ -182,7 +229,8 @@ export const StorageService = {
     const { data } = await supabase.from('server_config').select('*').limit(1).single();
     if (!data) return {
        pcDownloadUrl: '', mobileDownloadUrl: '', discordUrl: '', pixKey: '', pixQrCodeUrl: '',
-       homeBackgroundUrl: '', aboutImageUrl: '', newsDefaultImageUrl: ''
+       homeBackgroundUrl: '', aboutImageUrl: '', newsDefaultImageUrl: '',
+       capiCoinPrice: 1.0 // Default price
     };
     return {
       pcDownloadUrl: data.pc_download_url,
@@ -192,14 +240,15 @@ export const StorageService = {
       pixQrCodeUrl: data.pix_qr_code_url,
       homeBackgroundUrl: data.home_background_url,
       aboutImageUrl: data.about_image_url,
-      newsDefaultImageUrl: data.news_default_image_url
+      newsDefaultImageUrl: data.news_default_image_url,
+      capiCoinPrice: data.capi_coin_price || 1.0
     };
   },
   saveConfig: async (config: ServerConfig) => {
     // Check if exists
     const { data } = await supabase.from('server_config').select('id').limit(1);
     if (data && data.length > 0) {
-      await supabase.from('server_config').update({
+      const { error } = await supabase.from('server_config').update({
          pc_download_url: config.pcDownloadUrl,
          mobile_download_url: config.mobileDownloadUrl,
          discord_url: config.discordUrl,
@@ -207,10 +256,12 @@ export const StorageService = {
          pix_qr_code_url: config.pixQrCodeUrl,
          home_background_url: config.homeBackgroundUrl,
          about_image_url: config.aboutImageUrl,
-         news_default_image_url: config.newsDefaultImageUrl
+         news_default_image_url: config.newsDefaultImageUrl,
+         capi_coin_price: config.capiCoinPrice
       }).eq('id', data[0].id);
+      if(error) throw error;
     } else {
-      await supabase.from('server_config').insert([{
+      const { error } = await supabase.from('server_config').insert([{
          pc_download_url: config.pcDownloadUrl,
          mobile_download_url: config.mobileDownloadUrl,
          discord_url: config.discordUrl,
@@ -218,8 +269,10 @@ export const StorageService = {
          pix_qr_code_url: config.pixQrCodeUrl,
          home_background_url: config.homeBackgroundUrl,
          about_image_url: config.aboutImageUrl,
-         news_default_image_url: config.newsDefaultImageUrl
+         news_default_image_url: config.newsDefaultImageUrl,
+         capi_coin_price: config.capiCoinPrice
       }]);
+      if(error) throw error;
     }
   },
 

@@ -6,6 +6,7 @@ interface UserProfile {
   id: string;
   rp_nick: string;
   discord: string;
+  game_id: number; // Novo campo
 }
 
 interface AuthContextType {
@@ -34,12 +35,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .single();
       
       if (error) {
-        console.error('Error fetching profile:', error);
+        // Ignora erro PGRST116 (JSON object requested, multiple (or no) rows returned)
+        // Isso acontece se o usuário acabou de criar a conta e o perfil ainda não foi salvo
+        if (error.code !== 'PGRST116') {
+           // Loga o erro completo para facilitar o debug
+           console.error('Error fetching profile:', error);
+        }
+        setProfile(null);
       } else {
         setProfile(data);
       }
     } catch (err) {
       console.error('Exception fetching profile:', err);
+      setProfile(null);
     }
   };
 

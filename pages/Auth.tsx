@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../services/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../components/ToastSystem';
-import { User, Lock, Mail, Disc, LogIn, UserPlus, Loader2 } from 'lucide-react';
+import { User, Lock, Mail, Disc, LogIn, UserPlus, Loader2, Hash } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const AuthPage: React.FC = () => {
@@ -15,6 +15,7 @@ export const AuthPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rpNick, setRpNick] = useState('');
+  const [gameId, setGameId] = useState('');
   const [discord, setDiscord] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -37,7 +38,7 @@ export const AuthPage: React.FC = () => {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password || !rpNick || !discord) {
+    if (!email || !password || !rpNick || !discord || !gameId) {
       addToast('Preencha todos os campos!', 'error');
       return;
     }
@@ -64,7 +65,8 @@ export const AuthPage: React.FC = () => {
           { 
             id: authData.user.id,
             rp_nick: rpNick,
-            discord: discord
+            discord: discord,
+            game_id: parseInt(gameId)
           }
         ]);
 
@@ -154,20 +156,37 @@ export const AuthPage: React.FC = () => {
             </form>
           ) : (
             <form onSubmit={handleRegister} className="space-y-4">
-               <div>
-                <label className="block text-gray-400 text-xs font-bold uppercase mb-2">Nick RP (Nome_Sobrenome)</label>
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
-                  <input 
-                    type="text" 
-                    value={rpNick}
-                    onChange={e => setRpNick(e.target.value)}
-                    className="w-full bg-dark-900 border border-dark-600 rounded-lg py-3 pl-10 pr-4 text-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-all"
-                    placeholder="Ex: John_Doe"
-                    required
-                  />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-400 text-xs font-bold uppercase mb-2">Nick RP</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                    <input 
+                      type="text" 
+                      value={rpNick}
+                      onChange={e => setRpNick(e.target.value)}
+                      className="w-full bg-dark-900 border border-dark-600 rounded-lg py-3 pl-10 pr-4 text-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-all"
+                      placeholder="Nome_Sobrenome"
+                      required
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-gray-400 text-xs font-bold uppercase mb-2">ID no Jogo</label>
+                  <div className="relative">
+                    <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                    <input 
+                      type="number" 
+                      value={gameId}
+                      onChange={e => setGameId(e.target.value)}
+                      className="w-full bg-dark-900 border border-dark-600 rounded-lg py-3 pl-10 pr-4 text-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-all"
+                      placeholder="Ex: 123"
+                      required
+                    />
+                  </div>
                 </div>
               </div>
+              
               <div>
                 <label className="block text-gray-400 text-xs font-bold uppercase mb-2">Discord (Usuario)</label>
                 <div className="relative">
