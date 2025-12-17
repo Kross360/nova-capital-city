@@ -64,6 +64,16 @@ export const StorageService = {
     if(error) throw error; // Throw error to be caught by UI
     return data;
   },
+  updateShopItem: async (id: string, item: Partial<ShopItem>) => {
+    const { error } = await supabase.from('shop_items').update({
+      name: item.name,
+      description: item.description,
+      price: item.price,
+      category: item.category,
+      image_url: item.imageUrl
+    }).eq('id', id);
+    if(error) throw error;
+  },
   deleteShopItem: async (id: string) => {
     const { error } = await supabase.from('shop_items').delete().eq('id', id);
     if(error) throw error;
@@ -81,6 +91,10 @@ export const StorageService = {
   },
   addRule: async (rule: Omit<Rule, 'id'>) => {
     const { error } = await supabase.from('rules').insert([rule]);
+    if(error) throw error;
+  },
+  updateRule: async (id: string, rule: Partial<Rule>) => {
+    const { error } = await supabase.from('rules').update(rule).eq('id', id);
     if(error) throw error;
   },
   deleteRule: async (id: string) => {
@@ -105,6 +119,16 @@ export const StorageService = {
       date: news.date,
       image_url: news.imageUrl
     }]);
+    if(error) throw error;
+  },
+  updateNews: async (id: string, news: Partial<NewsPost>) => {
+    const updateData: any = {
+      title: news.title,
+      summary: news.summary,
+      content: news.content,
+      image_url: news.imageUrl
+    };
+    const { error } = await supabase.from('news').update(updateData).eq('id', id);
     if(error) throw error;
   },
   deleteNews: async (id: string) => {

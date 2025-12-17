@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StorageService } from '../services/storage';
 import { ShopItem, Rule, NewsPost, Category, PaymentRequest, ServerConfig } from '../types';
-import { Trash2, Plus, LogOut, LayoutGrid, ScrollText, Newspaper, CreditCard, CheckCircle, XCircle, Eye, RefreshCw, Link as LinkIcon, Settings, Save, Smartphone, Monitor, MessageCircle, QrCode, Image as ImageIcon, Send, Shield, User, Upload, Loader2, Coins } from 'lucide-react';
+import { Trash2, Plus, LogOut, LayoutGrid, ScrollText, Newspaper, CreditCard, CheckCircle, XCircle, Eye, RefreshCw, Link as LinkIcon, Settings, Save, Smartphone, Monitor, MessageCircle, QrCode, Image as ImageIcon, Send, Shield, User, Upload, Loader2, Coins, Pencil, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ToastSystem';
 
@@ -32,19 +32,22 @@ export const Admin: React.FC = () => {
     capiCoinPrice: 1.0
   });
 
-  // Shop Form
+  // Shop Form & State
+  const [editingShopId, setEditingShopId] = useState<string | null>(null);
   const [newItemName, setNewItemName] = useState('');
   const [newItemDesc, setNewItemDesc] = useState('');
   const [newItemPrice, setNewItemPrice] = useState('');
   const [newItemCat, setNewItemCat] = useState<Category>('VIP');
   const [newItemImageUrl, setNewItemImageUrl] = useState('');
 
-  // Rule Form
+  // Rule Form & State
+  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
   const [newRuleTitle, setNewRuleTitle] = useState('');
   const [newRuleContent, setNewRuleContent] = useState('');
   const [newRuleCat, setNewRuleCat] = useState('GENERAL');
 
-  // News Form
+  // News Form & State
+  const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
   const [newNewsTitle, setNewNewsTitle] = useState('');
   const [newNewsSummary, setNewNewsSummary] = useState('');
   const [newNewsContent, setNewNewsContent] = useState('');
@@ -137,8 +140,8 @@ export const Admin: React.FC = () => {
 
   // --- ACTIONS ---
 
-  // Shop
-  const addShopItem = async () => {
+  // Shop Actions
+  const handleSaveShopItem = async () => {
     if (!newItemName || !newItemPrice) return addToast("Preencha nome e preço.", 'error');
     
     setUploading(true);
@@ -146,16 +149,23 @@ export const Admin: React.FC = () => {
     const finalImageUrl = newItemImageUrl || `https://picsum.photos/400/300?random=${Date.now()}`;
     
     try {
-      await StorageService.addShopItem({
+      const itemData = {
         name: newItemName,
         description: newItemDesc,
         price: parseFloat(newItemPrice),
         category: newItemCat,
         imageUrl: finalImageUrl
-      });
+      };
 
-      setNewItemName(''); setNewItemDesc(''); setNewItemPrice(''); setNewItemImageUrl('');
-      addToast('Item adicionado à loja!', 'success');
+      if (editingShopId) {
+        await StorageService.updateShopItem(editingShopId, itemData);
+        addToast('Item atualizado com sucesso!', 'success');
+      } else {
+        await StorageService.addShopItem(itemData);
+        addToast('Item adicionado à loja!', 'success');
+      }
+
+      resetShopForm();
       refreshAll();
     } catch (e: any) {
       addToast('Erro ao salvar: ' + e.message, 'error');
@@ -164,49 +174,99 @@ export const Admin: React.FC = () => {
     }
   };
 
-  const deleteShopItem = async (id: string) => {
-    await StorageService.deleteShopItem(id);
-    addToast('Item removido da loja.', 'info');
-    refreshAll();
+  const startEditShop = (item: ShopItem) => {
+    setNewItemName(item.name);
+    setNewItemDesc(item.description);
+    setNewItemPrice(item.price.toString());
+    setNewItemCat(item.category);
+    setNewItemImageUrl(item.imageUrl);
+    setEditingShopId(item.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Rules
-  const addRule = async () => {
+  const resetShopForm = () => {
+    setNewItemName(''); setNewItemDesc(''); setNewItemPrice(''); setNewItemImageUrl('');
+    setNewItemCat('VIP');
+    setEditingShopId(null);
+  };
+
+  const deleteShopItem = async (id: string) => {
+    if (window.confirm("Tem certeza que deseja remover este item?")) {
+      await StorageService.deleteShopItem(id);
+      addToast('Item removido da loja.', 'info');
+      refreshAll();
+    }
+  };
+
+  // Rules Actions
+  const handleSaveRule = async () => {
     if(!newRuleTitle) return addToast("Preencha o título da regra.", 'error');
-    await StorageService.addRule({
+    
+    const ruleData = {
       title: newRuleTitle,
       content: newRuleContent,
       category: newRuleCat as any
-    });
-    setNewRuleTitle(''); setNewRuleContent('');
-    addToast('Regra publicada com sucesso!', 'success');
+    };
+
+    if (editingRuleId) {
+      await StorageService.updateRule(editingRuleId, ruleData);
+      addToast('Regra atualizada!', 'success');
+    } else {
+      await StorageService.addRule(ruleData);
+      addToast('Regra publicada!', 'success');
+    }
+
+    resetRuleForm();
     refreshAll();
+  };
+
+  const startEditRule = (rule: Rule) => {
+    setNewRuleTitle(rule.title);
+    setNewRuleContent(rule.content);
+    setNewRuleCat(rule.category);
+    setEditingRuleId(rule.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const resetRuleForm = () => {
+    setNewRuleTitle(''); setNewRuleContent(''); setNewRuleCat('GENERAL');
+    setEditingRuleId(null);
   };
 
   const deleteRule = async (id: string) => {
-    await StorageService.deleteRule(id);
-    addToast('Regra removida.', 'info');
-    refreshAll();
+    if (window.confirm("Remover regra?")) {
+      await StorageService.deleteRule(id);
+      addToast('Regra removida.', 'info');
+      refreshAll();
+    }
   };
 
-  // News
-  const addNews = async () => {
+  // News Actions
+  const handleSaveNews = async () => {
     if(!newNewsTitle || !newNewsSummary) return addToast("Preencha título e resumo da notícia.", 'error');
     
     setUploading(true);
     const finalImageUrl = newNewsImageUrl || `https://picsum.photos/800/400?random=${Date.now()}`;
 
     try {
-      await StorageService.addNews({
+      const newsData = {
         title: newNewsTitle,
         summary: newNewsSummary,
         content: newNewsContent,
         author: 'Admin',
         date: new Date().toLocaleDateString('pt-BR'),
         imageUrl: finalImageUrl
-      });
-      setNewNewsTitle(''); setNewNewsSummary(''); setNewNewsContent(''); setNewNewsImageUrl('');
-      addToast('Notícia publicada!', 'success');
+      };
+
+      if (editingNewsId) {
+        await StorageService.updateNews(editingNewsId, newsData);
+        addToast('Notícia atualizada!', 'success');
+      } else {
+        await StorageService.addNews(newsData);
+        addToast('Notícia publicada!', 'success');
+      }
+
+      resetNewsForm();
       refreshAll();
     } catch (e: any) {
        addToast('Erro ao salvar notícia: ' + e.message, 'error');
@@ -215,10 +275,26 @@ export const Admin: React.FC = () => {
     }
   };
 
+  const startEditNews = (post: NewsPost) => {
+    setNewNewsTitle(post.title);
+    setNewNewsSummary(post.summary);
+    setNewNewsContent(post.content);
+    setNewNewsImageUrl(post.imageUrl || '');
+    setEditingNewsId(post.id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const resetNewsForm = () => {
+    setNewNewsTitle(''); setNewNewsSummary(''); setNewNewsContent(''); setNewNewsImageUrl('');
+    setEditingNewsId(null);
+  };
+
   const deleteNews = async (id: string) => {
-    await StorageService.deleteNews(id);
-    addToast('Notícia removida.', 'info');
-    refreshAll();
+    if (window.confirm("Apagar notícia?")) {
+      await StorageService.deleteNews(id);
+      addToast('Notícia removida.', 'info');
+      refreshAll();
+    }
   };
 
   // Payments
@@ -447,8 +523,16 @@ export const Admin: React.FC = () => {
           {/* TAB: SHOP */}
           {activeTab === 'SHOP' && (
             <div>
-               <h2 className="text-xl font-bold text-white mb-6">Gerenciar Loja</h2>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 bg-dark-900/50 p-4 rounded-xl border border-white/5">
+               <div className="flex justify-between items-center mb-6">
+                 <h2 className="text-xl font-bold text-white">Gerenciar Loja</h2>
+                 {editingShopId && (
+                   <button onClick={resetShopForm} className="text-sm bg-red-500/20 text-red-400 px-3 py-1 rounded flex items-center gap-1 hover:bg-red-500/30">
+                     <X size={14}/> Cancelar Edição
+                   </button>
+                 )}
+               </div>
+
+               <div className={`grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 bg-dark-900/50 p-4 rounded-xl border ${editingShopId ? 'border-brand-500 shadow-brand-500/10 shadow-lg' : 'border-white/5'}`}>
                  <input placeholder="Nome" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
                  <input placeholder="Preço" type="number" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
                  <select value={newItemCat} onChange={e => setNewItemCat(e.target.value as Category)} className="bg-dark-800 border border-dark-600 p-2 rounded text-white">
@@ -476,15 +560,15 @@ export const Admin: React.FC = () => {
                     )}
                  </div>
 
-                 <button onClick={addShopItem} disabled={uploading} className="col-span-1 md:col-span-2 bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded font-bold flex items-center justify-center gap-2">
-                    {uploading ? <Loader2 className="animate-spin"/> : <Plus size={18}/>}
-                    {uploading ? 'Salvando...' : 'Adicionar Item'}
+                 <button onClick={handleSaveShopItem} disabled={uploading} className={`col-span-1 md:col-span-2 text-white px-4 py-2 rounded font-bold flex items-center justify-center gap-2 transition-colors ${editingShopId ? 'bg-brand-600 hover:bg-brand-500' : 'bg-green-600 hover:bg-green-500'}`}>
+                    {uploading ? <Loader2 className="animate-spin"/> : editingShopId ? <Save size={18}/> : <Plus size={18}/>}
+                    {uploading ? 'Salvando...' : editingShopId ? 'Salvar Alterações' : 'Adicionar Item'}
                  </button>
                </div>
                
                <div className="space-y-2">
                  {shopItems.map(i => (
-                   <div key={i.id} className="bg-dark-900 p-4 flex justify-between items-center text-white rounded border border-white/5">
+                   <div key={i.id} className={`bg-dark-900 p-4 flex justify-between items-center text-white rounded border transition-colors ${editingShopId === i.id ? 'border-brand-500' : 'border-white/5'}`}>
                      <div className="flex items-center gap-3">
                         <img src={i.imageUrl} className="w-10 h-10 rounded object-cover" />
                         <div>
@@ -495,31 +579,54 @@ export const Admin: React.FC = () => {
                             <p className="text-xs text-gray-500">{i.category} - R$ {i.price}</p>
                         </div>
                      </div>
-                     <button onClick={() => deleteShopItem(i.id)} className="text-red-500 hover:bg-red-500/20 p-2 rounded"><Trash2 size={18}/></button>
+                     <div className="flex items-center gap-2">
+                        <button onClick={() => startEditShop(i)} className="text-brand-400 hover:bg-brand-500/20 p-2 rounded" title="Editar"><Pencil size={18}/></button>
+                        <button onClick={() => deleteShopItem(i.id)} className="text-red-500 hover:bg-red-500/20 p-2 rounded" title="Remover"><Trash2 size={18}/></button>
+                     </div>
                    </div>
                  ))}
                </div>
             </div>
           )}
 
-          {/* ... resto do código (Tabs RULES, NEWS, PAYMENTS mantidos iguais) ... */}
           {/* TAB: RULES */}
           {activeTab === 'RULES' && (
              <div>
-                <h2 className="text-xl font-bold text-white mb-6">Regras</h2>
-                <div className="space-y-4 mb-8 bg-dark-900/50 p-4 rounded-xl border border-white/5">
+                <div className="flex justify-between items-center mb-6">
+                 <h2 className="text-xl font-bold text-white">Regras</h2>
+                 {editingRuleId && (
+                   <button onClick={resetRuleForm} className="text-sm bg-red-500/20 text-red-400 px-3 py-1 rounded flex items-center gap-1 hover:bg-red-500/30">
+                     <X size={14}/> Cancelar Edição
+                   </button>
+                 )}
+               </div>
+
+                <div className={`space-y-4 mb-8 bg-dark-900/50 p-4 rounded-xl border ${editingRuleId ? 'border-brand-500 shadow-brand-500/10 shadow-lg' : 'border-white/5'}`}>
+                    <select value={newRuleCat} onChange={e => setNewRuleCat(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white">
+                       <option value="GENERAL">Geral</option>
+                       <option value="COMBAT">Combate (PVP)</option>
+                       <option value="ILLEGAL">Ilegalidades</option>
+                       <option value="SAFEZONE">Safe Zones</option>
+                    </select>
                     <input placeholder="Título" value={newRuleTitle} onChange={e => setNewRuleTitle(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
-                    <textarea placeholder="Conteúdo" value={newRuleContent} onChange={e => setNewRuleContent(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
-                    <button onClick={addRule} className="bg-green-600 text-white px-4 py-2 rounded font-bold">Adicionar</button>
+                    <textarea placeholder="Conteúdo" value={newRuleContent} onChange={e => setNewRuleContent(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white h-24"/>
+                    <button onClick={handleSaveRule} className={`text-white px-4 py-2 rounded font-bold w-full flex justify-center items-center gap-2 ${editingRuleId ? 'bg-brand-600 hover:bg-brand-500' : 'bg-green-600 hover:bg-green-500'}`}>
+                      {editingRuleId ? <Save size={18}/> : <Plus size={18}/>}
+                      {editingRuleId ? 'Atualizar Regra' : 'Adicionar Regra'}
+                    </button>
                 </div>
+
                 <div className="space-y-2">
                  {rules.map(r => (
-                   <div key={r.id} className="bg-dark-900 p-4 flex justify-between text-white rounded border border-white/5">
+                   <div key={r.id} className={`bg-dark-900 p-4 flex justify-between text-white rounded border transition-colors ${editingRuleId === r.id ? 'border-brand-500' : 'border-white/5'}`}>
                      <div>
                         <span className="text-xs text-brand-400 font-bold">{r.category}</span>
                         <p className="font-bold">{r.title}</p>
                      </div>
-                     <button onClick={() => deleteRule(r.id)} className="text-red-500 hover:bg-red-500/20 p-2 rounded"><Trash2 size={18}/></button>
+                     <div className="flex items-center gap-2">
+                        <button onClick={() => startEditRule(r)} className="text-brand-400 hover:bg-brand-500/20 p-2 rounded" title="Editar"><Pencil size={18}/></button>
+                        <button onClick={() => deleteRule(r.id)} className="text-red-500 hover:bg-red-500/20 p-2 rounded" title="Remover"><Trash2 size={18}/></button>
+                     </div>
                    </div>
                  ))}
                </div>
@@ -529,8 +636,16 @@ export const Admin: React.FC = () => {
           {/* TAB: NEWS */}
           {activeTab === 'NEWS' && (
              <div>
-                <h2 className="text-xl font-bold text-white mb-6">Notícias</h2>
-                <div className="space-y-4 mb-8 bg-dark-900/50 p-4 rounded-xl border border-white/5">
+                <div className="flex justify-between items-center mb-6">
+                 <h2 className="text-xl font-bold text-white">Notícias</h2>
+                 {editingNewsId && (
+                   <button onClick={resetNewsForm} className="text-sm bg-red-500/20 text-red-400 px-3 py-1 rounded flex items-center gap-1 hover:bg-red-500/30">
+                     <X size={14}/> Cancelar Edição
+                   </button>
+                 )}
+               </div>
+
+                <div className={`space-y-4 mb-8 bg-dark-900/50 p-4 rounded-xl border ${editingNewsId ? 'border-brand-500 shadow-brand-500/10 shadow-lg' : 'border-white/5'}`}>
                     <input placeholder="Título" value={newNewsTitle} onChange={e => setNewNewsTitle(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
                     <input placeholder="Resumo" value={newNewsSummary} onChange={e => setNewNewsSummary(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white"/>
                     <textarea placeholder="Conteúdo" value={newNewsContent} onChange={e => setNewNewsContent(e.target.value)} className="w-full bg-dark-800 border border-dark-600 p-2 rounded text-white h-24"/>
@@ -550,16 +665,19 @@ export const Admin: React.FC = () => {
                       )}
                     </div>
 
-                    <button onClick={addNews} disabled={uploading} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded font-bold flex items-center gap-2 justify-center w-full">
-                       {uploading ? <Loader2 className="animate-spin"/> : <Plus size={18}/>}
-                       {uploading ? 'Publicando...' : 'Publicar Notícia'}
+                    <button onClick={handleSaveNews} disabled={uploading} className={`text-white px-4 py-2 rounded font-bold flex items-center gap-2 justify-center w-full ${editingNewsId ? 'bg-brand-600 hover:bg-brand-500' : 'bg-green-600 hover:bg-green-500'}`}>
+                       {uploading ? <Loader2 className="animate-spin"/> : editingNewsId ? <Save size={18}/> : <Plus size={18}/>}
+                       {uploading ? 'Salvando...' : editingNewsId ? 'Salvar Notícia' : 'Publicar Notícia'}
                     </button>
                 </div>
                 <div className="space-y-2">
                  {news.map(n => (
-                   <div key={n.id} className="bg-dark-900 p-4 flex justify-between text-white rounded border border-white/5">
+                   <div key={n.id} className={`bg-dark-900 p-4 flex justify-between text-white rounded border transition-colors ${editingNewsId === n.id ? 'border-brand-500' : 'border-white/5'}`}>
                      <p className="font-bold">{n.title}</p>
-                     <button onClick={() => deleteNews(n.id)} className="text-red-500 hover:bg-red-500/20 p-2 rounded"><Trash2 size={18}/></button>
+                     <div className="flex items-center gap-2">
+                        <button onClick={() => startEditNews(n)} className="text-brand-400 hover:bg-brand-500/20 p-2 rounded" title="Editar"><Pencil size={18}/></button>
+                        <button onClick={() => deleteNews(n.id)} className="text-red-500 hover:bg-red-500/20 p-2 rounded" title="Remover"><Trash2 size={18}/></button>
+                     </div>
                    </div>
                  ))}
                </div>
