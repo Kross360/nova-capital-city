@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { StorageService } from '../services/storage';
 import { ShopItem, ServerConfig } from '../types';
-import { QrCode, Upload, CheckCircle, ArrowLeft, CreditCard, Copy, MessageSquare, Coins, Calculator, Minus, Plus } from 'lucide-react';
+import { QrCode, Upload, CheckCircle, ArrowLeft, CreditCard, Copy, MessageSquare, Coins, Minus, Plus } from 'lucide-react';
 import { useToast } from '../components/ToastSystem';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -21,38 +21,24 @@ export const Checkout: React.FC = () => {
   const [createdOrderId, setCreatedOrderId] = useState<string>('');
   const [config, setConfig] = useState<ServerConfig>({} as ServerConfig);
 
-  // Dynamic Coins Logic
   const isCoinPurchase = itemId === 'capicoins';
   const [coinQuantity, setCoinQuantity] = useState(100);
 
   useEffect(() => {
     StorageService.getConfig().then(setConfig);
-    
-    // Autofill from Profile
     if (profile) {
       setPlayerNick(profile.rp_nick);
       setDiscordContact(profile.discord);
       if (profile.game_id) setGameId(profile.game_id.toString());
     }
-
-    if (itemId) {
-      if (itemId === 'capicoins') {
-         // Create a virtual item for Coins
-         // We will update price dynamically
-      } else {
-        StorageService.getShopItemById(itemId).then((foundItem) => {
-           if (foundItem) {
-              setItem(foundItem);
-           } else {
-              navigate('/shop');
-              addToast('Item não encontrado.', 'error');
-           }
-        });
-      }
+    if (itemId && itemId !== 'capicoins') {
+      StorageService.getShopItemById(itemId).then((foundItem) => {
+         if (foundItem) setItem(foundItem);
+         else { navigate('/shop'); addToast('Item não encontrado.', 'error'); }
+      });
     }
   }, [itemId, navigate, addToast, profile]);
 
-  // Calculate dynamic price
   const currentTotal = isCoinPurchase 
     ? coinQuantity * (config.capiCoinPrice || 1) 
     : (item?.price || 0);
@@ -60,8 +46,8 @@ export const Checkout: React.FC = () => {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 1024 * 1024) { // 1MB Limit
-        addToast("A imagem é muito grande! Máximo 1MB.", 'error');
+      if (file.size > 2 * 1024 * 1024) { 
+        addToast("A imagem é muito grande! Máximo 2MB.", 'error');
         return;
       }
       const reader = new FileReader();
@@ -73,21 +59,9 @@ export const Checkout: React.FC = () => {
     }
   };
 
-  const handleCopyPix = () => {
-    if (config.pixKey) {
-      navigator.clipboard.writeText(config.pixKey);
-      addToast("Chave Pix copiada!", 'success');
-    } else {
-      addToast("Chave Pix não configurada.", 'error');
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Check item data
     if (!isCoinPurchase && !item) return;
-    
     if (!playerNick || !gameId || !proofImage || !discordContact) {
       addToast("Por favor, preencha todos os campos e envie o comprovante.", 'error');
       return;
@@ -98,7 +72,7 @@ export const Checkout: React.FC = () => {
     const finalPrice = currentTotal;
 
     try {
-      const data = await StorageService.addPayment({
+      const orderPayload = {
         itemId: finalItemId,
         itemName: finalItemName,
         itemPrice: finalPrice,
@@ -106,14 +80,22 @@ export const Checkout: React.FC = () => {
         playerId: parseInt(gameId),
         discordContact,
         proofImageUrl: proofImage,
-        status: 'PENDING'
-      });
+        status: 'PENDING' as any
+      };
+
+      const data = await StorageService.addPayment(orderPayload);
       
       const newId = data.id;
-      StorageService.saveMyOrderId(newId); // Salva no histórico local do usuário
+      StorageService.saveMyOrderId(newId);
       setCreatedOrderId(newId);
       setSubmitted(true);
       window.scrollTo(0, 0);
+
+      // DISPARAR NOTIFICAÇÃO NO CELULAR DO ADMIN VIA WEBHOOK
+      if (config.discordWebhookUrl) {
+         await StorageService.sendDiscordNotification(config.discordWebhookUrl, orderPayload);
+      }
+
     } catch (error) {
       console.error(error);
       addToast('Erro ao processar pedido. Tente novamente.', 'error');
@@ -123,226 +105,91 @@ export const Checkout: React.FC = () => {
   if (submitted) {
     return (
       <div className="min-h-[80vh] flex items-center justify-center px-4 animate-fade-in">
-        <div className="max-w-md w-full bg-dark-800 border border-brand-500/30 rounded-2xl p-8 text-center shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-400 to-brand-600"></div>
+        <div className="max-w-md w-full bg-dark-800 border border-brand-500/30 rounded-2xl p-8 text-center shadow-2xl relative">
           <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-green-500">
             <CheckCircle size={40} />
           </div>
           <h2 className="text-3xl font-bold text-white mb-2">Pagamento Enviado!</h2>
-          <p className="text-gray-300 mb-6">
-            Recebemos seu comprovante. Seu pedido foi salvo no histórico deste dispositivo.
-          </p>
-          
-          <div className="bg-dark-900 rounded-lg p-4 mb-6 border border-white/5 relative group">
+          <p className="text-gray-300 mb-6">Recebemos seu comprovante. Um administrador foi notificado.</p>
+          <div className="bg-dark-900 rounded-lg p-4 mb-6 border border-white/5 relative">
              <p className="text-xs text-gray-500 uppercase mb-1">ID do Pedido</p>
              <p className="text-xl font-mono text-white font-bold tracking-wider">{createdOrderId}</p>
-             <button 
-                onClick={() => { navigator.clipboard.writeText(createdOrderId); addToast('ID Copiado!', 'success'); }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-400 hover:text-white"
-             >
-               <Copy size={20} />
-             </button>
+             <button onClick={() => { navigator.clipboard.writeText(createdOrderId); addToast('ID Copiado!', 'success'); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-400"><Copy size={20} /></button>
           </div>
-
           <div className="space-y-3">
-             <Link 
-              to={`/track/${createdOrderId}`}
-              className="block w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-             >
-               <MessageSquare size={18} />
-               Chat com Admin / Rastrear
-             </Link>
-
-             <Link to="/shop" className="block w-full bg-white/10 hover:bg-white/20 text-white font-bold py-3 rounded-lg transition-colors">
-               Voltar para Loja
-             </Link>
+             <Link to={`/track/${createdOrderId}`} className="block w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2"><MessageSquare size={18} /> Chat com Admin</Link>
+             <Link to="/shop" className="block w-full bg-white/10 text-white font-bold py-3 rounded-lg">Voltar para Loja</Link>
           </div>
         </div>
       </div>
     );
   }
 
-  // Loading state if not coins and no item yet
-  if (!isCoinPurchase && !item) return <div className="p-20 text-center text-white">Carregando item...</div>;
+  if (!isCoinPurchase && !item) return <div className="p-20 text-center text-white">Carregando...</div>;
 
   return (
     <div className="py-12 px-4 max-w-4xl mx-auto">
-      <Link to="/shop" className="text-gray-400 hover:text-white flex items-center gap-2 mb-8 transition-colors">
-        <ArrowLeft size={20} /> Voltar para Loja
-      </Link>
-
+      <Link to="/shop" className="text-gray-400 hover:text-white flex items-center gap-2 mb-8 transition-colors"><ArrowLeft size={20} /> Voltar</Link>
       <div className="grid md:grid-cols-3 gap-8">
-        {/* Coluna da Esquerda: Resumo do Item */}
         <div className="md:col-span-1 space-y-6">
           <div className="bg-dark-800 rounded-xl p-6 border border-white/5 sticky top-24">
-            <h3 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Resumo do Pedido</h3>
-            
-            {/* ITEM IMAGE / ICON */}
+            <h3 className="text-lg font-bold text-white mb-4 border-b border-white/10 pb-2">Resumo</h3>
             <div className="mb-4 rounded-lg overflow-hidden h-32 bg-dark-900 flex items-center justify-center border border-white/5 relative">
-              {isCoinPurchase ? (
-                 <>
-                   <div className="absolute inset-0 bg-yellow-500/10 animate-pulse"></div>
-                   <Coins size={64} className="text-yellow-400 drop-shadow-lg" />
-                 </>
-              ) : (
-                <img src={item!.imageUrl} alt={item!.name} className="w-full h-full object-cover" />
-              )}
+              {isCoinPurchase ? <Coins size={64} className="text-yellow-400" /> : <img src={item!.imageUrl} alt={item!.name} className="w-full h-full object-cover" />}
             </div>
-
             <h4 className="font-bold text-white text-xl mb-1">{isCoinPurchase ? 'Pacote CapiCoins' : item!.name}</h4>
-            
-            <span className={`inline-block text-xs px-2 py-1 rounded border mb-4 ${
-              isCoinPurchase 
-                ? 'bg-yellow-900/50 text-yellow-300 border-yellow-500/20' 
-                : 'bg-brand-900/50 text-brand-300 border-brand-500/20'
-            }`}>
-              {isCoinPurchase ? 'MOEDA PREMIUM' : item!.category}
-            </span>
-
-            {/* DYNAMIC CALCULATOR FOR COINS */}
             {isCoinPurchase && (
                <div className="mb-6 bg-dark-900 p-3 rounded-lg border border-yellow-500/20">
-                  <label className="block text-gray-400 text-xs mb-2 text-center">Quantidade de Coins</label>
+                  <label className="block text-gray-400 text-xs mb-2 text-center">Quantidade</label>
                   <div className="flex items-center justify-between gap-2">
                      <button onClick={() => setCoinQuantity(Math.max(1, coinQuantity - 10))} className="p-1 text-gray-400 hover:text-white bg-white/5 rounded"><Minus size={16}/></button>
-                     <input 
-                      type="number" 
-                      min="1"
-                      value={coinQuantity} 
-                      onChange={e => setCoinQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                      className="w-20 bg-transparent text-center text-white font-bold focus:outline-none"
-                     />
+                     <input type="number" min="1" value={coinQuantity} onChange={e => setCoinQuantity(Math.max(1, parseInt(e.target.value) || 1))} className="w-20 bg-transparent text-center text-white font-bold focus:outline-none" />
                      <button onClick={() => setCoinQuantity(coinQuantity + 10)} className="p-1 text-gray-400 hover:text-white bg-white/5 rounded"><Plus size={16}/></button>
-                  </div>
-                  <div className="text-center text-xs text-gray-500 mt-2">
-                     1 Coin = R$ {config.capiCoinPrice?.toFixed(2)}
                   </div>
                </div>
             )}
-
             <div className="flex justify-between items-center text-gray-300 mb-2 pt-2 border-t border-white/5">
-              <span>Total a Pagar:</span>
+              <span>Total:</span>
               <span className="text-white font-bold text-2xl">R$ {currentTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
-
-        {/* Coluna da Direita: Pagamento e Formulário */}
         <div className="md:col-span-2">
           <div className="bg-dark-800 rounded-xl p-8 border border-white/5">
-            <h1 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
-              <CreditCard className="text-brand-500" />
-              Finalizar Pagamento
-            </h1>
-
-            {/* Área do PIX */}
+            <h1 className="text-2xl font-bold text-white mb-6 flex items-center gap-3"><CreditCard className="text-brand-500" /> Checkout</h1>
             <div className="bg-gradient-to-br from-dark-900 to-dark-800 p-6 rounded-xl border border-brand-500/30 mb-8 flex flex-col sm:flex-row items-center gap-6">
                <div className="bg-white p-2 rounded-lg shrink-0">
-                 {config.pixQrCodeUrl ? (
-                   <img src={config.pixQrCodeUrl} alt="QR Code Pix" className="w-24 h-24 object-contain" />
-                 ) : (
-                   <QrCode size={100} className="text-black" />
-                 )}
+                 {config.pixQrCodeUrl ? <img src={config.pixQrCodeUrl} alt="QR Code" className="w-24 h-24 object-contain" /> : <QrCode size={100} className="text-black" />}
                </div>
                <div className="flex-grow w-full overflow-hidden">
                  <h3 className="text-white font-bold mb-1">Pagamento via PIX</h3>
-                 <p className="text-gray-400 text-sm mb-4">Escaneie o QR Code ou use o Copia e Cola.</p>
-                 
-                 <div className="relative">
-                   <input 
-                    type="text" 
-                    readOnly 
-                    value={config.pixKey}
-                    className="w-full bg-dark-950 border border-dark-700 rounded p-3 text-gray-500 font-mono text-sm pr-12 text-ellipsis"
-                   />
-                   <button 
-                    onClick={handleCopyPix}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-400 hover:text-white p-1"
-                    title="Copiar Chave"
-                   >
-                     <Copy size={18} />
-                   </button>
+                 <div className="relative mt-4">
+                   <input type="text" readOnly value={config.pixKey} className="w-full bg-dark-950 border border-dark-700 rounded p-3 text-gray-500 font-mono text-sm pr-12 text-ellipsis" />
+                   <button onClick={() => { navigator.clipboard.writeText(config.pixKey); addToast("Chave copiada!", "success"); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-400"><Copy size={18} /></button>
                  </div>
                </div>
             </div>
-
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-gray-400 text-sm font-medium mb-2">Seu Nick no Jogo *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: Player_Name"
-                    value={playerNick}
-                    onChange={(e) => setPlayerNick(e.target.value)}
-                    className="w-full bg-dark-900 border border-dark-700 rounded-lg p-3 text-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-400 text-sm font-medium mb-2">ID no Jogo *</label>
-                  <input
-                    type="number"
-                    required
-                    placeholder="Ex: 123"
-                    value={gameId}
-                    onChange={(e) => setGameId(e.target.value)}
-                    className="w-full bg-dark-900 border border-dark-700 rounded-lg p-3 text-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="block text-gray-400 text-sm font-medium mb-2">Discord para Contato *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ex: usuario#1234"
-                    value={discordContact}
-                    onChange={(e) => setDiscordContact(e.target.value)}
-                    className="w-full bg-dark-900 border border-dark-700 rounded-lg p-3 text-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
-                  />
-                </div>
+                <input type="text" required placeholder="Nick no Jogo" value={playerNick} onChange={(e) => setPlayerNick(e.target.value)} className="w-full bg-dark-900 border border-dark-700 rounded-lg p-3 text-white focus:border-brand-500 focus:outline-none" />
+                <input type="number" required placeholder="ID no Jogo" value={gameId} onChange={(e) => setGameId(e.target.value)} className="w-full bg-dark-900 border border-dark-700 rounded-lg p-3 text-white focus:border-brand-500 focus:outline-none" />
+                <input type="text" required placeholder="Discord (Ex: user#1234)" className="md:col-span-2 w-full bg-dark-900 border border-dark-700 rounded-lg p-3 text-white focus:border-brand-500 focus:outline-none" value={discordContact} onChange={(e) => setDiscordContact(e.target.value)} />
               </div>
-
               <div>
-                <label className="block text-gray-400 text-sm font-medium mb-2">Comprovante de Pagamento *</label>
-                <div className="border-2 border-dashed border-dark-600 hover:border-brand-500 rounded-xl p-8 transition-colors text-center bg-dark-900/50">
-                   <input 
-                    type="file" 
-                    id="proof" 
-                    accept="image/*" 
-                    onChange={handleImageUpload} 
-                    className="hidden" 
-                   />
+                <label className="block text-gray-400 text-sm font-medium mb-2">Comprovante</label>
+                <div className="border-2 border-dashed border-dark-600 hover:border-brand-500 rounded-xl p-8 text-center bg-dark-900/50">
+                   <input type="file" id="proof" accept="image/*" onChange={handleImageUpload} className="hidden" />
                    <label htmlFor="proof" className="cursor-pointer flex flex-col items-center justify-center">
-                      {proofImage ? (
-                        <div className="relative group">
-                          <img src={proofImage} alt="Comprovante" className="h-48 rounded-lg object-contain shadow-lg" />
-                          <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
-                            <span className="text-white font-medium">Trocar Imagem</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <Upload size={32} className="text-gray-500 mb-3" />
-                          <span className="text-brand-400 font-medium">Clique para enviar a foto</span>
-                          <span className="text-gray-600 text-sm mt-1">PNG, JPG ou JPEG (Max 1MB)</span>
-                        </>
+                      {proofImage ? <img src={proofImage} alt="Preview" className="h-48 rounded-lg object-contain" /> : (
+                        <><Upload size={32} className="text-gray-500 mb-3" /><span className="text-brand-400 font-medium">Clique para enviar a foto</span></>
                       )}
                    </label>
                 </div>
               </div>
-
-              <div className="pt-4">
-                <button 
-                  type="submit"
-                  className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl text-lg shadow-lg shadow-green-900/20 transition-all transform hover:-translate-y-1 flex items-center justify-center gap-2"
-                >
-                  <CheckCircle size={24} />
-                  CONFIRMAR PAGAMENTO
-                </button>
-              </div>
+              <button type="submit" className="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all transform hover:-translate-y-1">
+                <CheckCircle size={24} /> CONFIRMAR PAGAMENTO
+              </button>
             </form>
-
           </div>
         </div>
       </div>

@@ -1,58 +1,61 @@
+
 import { supabase } from './supabase';
 import { ShopItem, Rule, NewsPost, PlayerStats, PaymentRequest, ServerConfig, ChatMessage } from '../types';
 
-// Chaves locais apenas para IDs salvos pelo usuário
 const STORAGE_KEYS = {
   MY_ORDERS: 'capital_my_orders',
 };
 
 export const StorageService = {
-  // --- UPLOAD ---
-  uploadImage: async (file: File, folder: 'shop' | 'news' | 'proofs'): Promise<string> => {
-    // Remove caracteres especiais do nome do arquivo
-    const sanitizedName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
-    const fileName = `${folder}/${Date.now()}_${sanitizedName}`;
-    
+  // --- NOTIFICAÇÕES EXTERNAS ---
+  sendDiscordNotification: async (webhookUrl: string, payment: any) => {
+    if (!webhookUrl) return;
+
+    const embed = {
+      title: "🚀 NOVO PEDIDO RECEBIDO!",
+      description: `Um novo pedido foi realizado no site e aguarda aprovação.`,
+      color: 5814783, // Azul Capital
+      fields: [
+        { name: "👤 Jogador", value: `**${payment.playerNick}** (ID: ${payment.playerId})`, inline: true },
+        { name: "📦 Item", value: payment.itemName, inline: true },
+        { name: "💰 Valor", value: `R$ ${payment.itemPrice.toFixed(2)}`, inline: true },
+        { name: "💬 Discord", value: payment.discordContact, inline: false },
+        { name: "🔗 Rastreamento", value: `[Clique aqui para ver o painel](https://${window.location.host}/#/admin)`, inline: false }
+      ],
+      footer: { text: "Capital City RP - Sistema de Vendas" },
+      timestamp: new Date().toISOString()
+    };
+
     try {
-      // Upload para o bucket 'images'
-      const { error } = await supabase.storage
-        .from('images')
-        .upload(fileName, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (error) {
-        console.warn("Supabase Storage Upload Error:", error.message);
-        // Se o erro for que o bucket não existe ou erro de permissão, usamos fallback
-        // Em produção, você deve criar o bucket 'images' no painel do Supabase e definir as políticas como 'Public'
-        if (folder === 'shop') return `https://picsum.photos/400/300?random=${Date.now()}`;
-        if (folder === 'news') return `https://picsum.photos/800/400?random=${Date.now()}`;
-        return `https://picsum.photos/500/500?random=${Date.now()}`;
-      }
-
-      // Gerar URL Pública
-      const { data } = supabase.storage
-        .from('images')
-        .getPublicUrl(fileName);
-
-      return data.publicUrl;
-
-    } catch (err) {
-      console.error("Upload Exception:", err);
-      // Fallback em caso de erro crítico de rede
-      return `https://picsum.photos/400/300?random=${Date.now()}`;
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embeds: [embed] })
+      });
+    } catch (e) {
+      console.error("Erro ao enviar webhook:", e);
     }
   },
 
   // --- SHOP ---
   getShopItems: async (): Promise<ShopItem[]> => {
-    const { data } = await supabase.from('shop_items').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('shop_items').select('*').order('created_at', { ascending: false });
+    if (error) console.error("Erro ao buscar itens da loja:", error);
     return (data || []).map((i: any) => ({
       ...i,
-      imageUrl: i.image_url // Map snake_case to camelCase
+      imageUrl: i.image_url
     }));
   },
+
+  getShopItemById: async (id: string): Promise<ShopItem | undefined> => {
+    const { data, error } = await supabase.from('shop_items').select('*').eq('id', id).single();
+    if (error || !data) return undefined;
+    return {
+      ...data,
+      imageUrl: data.image_url
+    };
+  },
+
   addShopItem: async (item: Omit<ShopItem, 'id'>) => {
     const { data, error } = await supabase.from('shop_items').insert([{
       name: item.name,
@@ -61,9 +64,10 @@ export const StorageService = {
       category: item.category,
       image_url: item.imageUrl
     }]).select().single();
-    if(error) throw error; // Throw error to be caught by UI
+    if(error) throw error;
     return data;
   },
+  
   updateShopItem: async (id: string, item: Partial<ShopItem>) => {
     const { error } = await supabase.from('shop_items').update({
       name: item.name,
@@ -74,19 +78,20 @@ export const StorageService = {
     }).eq('id', id);
     if(error) throw error;
   },
+
   deleteShopItem: async (id: string) => {
+    console.log("Iniciando exclusão do item:", id);
     const { error } = await supabase.from('shop_items').delete().eq('id', id);
-    if(error) throw error;
-  },
-  getShopItemById: async (id: string): Promise<ShopItem | undefined> => {
-    const { data } = await supabase.from('shop_items').select('*').eq('id', id).single();
-    if (!data) return undefined;
-    return { ...data, imageUrl: data.image_url };
+    if (error) {
+      console.error("Falha ao deletar item da loja no Supabase:", error);
+      throw new Error(error.message);
+    }
   },
 
   // --- RULES ---
   getRules: async (): Promise<Rule[]> => {
-    const { data } = await supabase.from('rules').select('*').order('created_at', { ascending: true });
+    const { data, error } = await supabase.from('rules').select('*').order('created_at', { ascending: true });
+    if (error) console.error("Erro ao buscar regras:", error);
     return data || [];
   },
   addRule: async (rule: Omit<Rule, 'id'>) => {
@@ -99,12 +104,13 @@ export const StorageService = {
   },
   deleteRule: async (id: string) => {
     const { error } = await supabase.from('rules').delete().eq('id', id);
-    if(error) throw error;
+    if (error) throw new Error(error.message);
   },
 
   // --- NEWS ---
   getNews: async (): Promise<NewsPost[]> => {
-    const { data } = await supabase.from('news').select('*').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('news').select('*').order('created_at', { ascending: false });
+    if (error) console.error("Erro ao buscar notícias:", error);
     return (data || []).map((n: any) => ({
       ...n,
       imageUrl: n.image_url
@@ -122,23 +128,23 @@ export const StorageService = {
     if(error) throw error;
   },
   updateNews: async (id: string, news: Partial<NewsPost>) => {
-    const updateData: any = {
+    const { error } = await supabase.from('news').update({
       title: news.title,
       summary: news.summary,
       content: news.content,
       image_url: news.imageUrl
-    };
-    const { error } = await supabase.from('news').update(updateData).eq('id', id);
+    }).eq('id', id);
     if(error) throw error;
   },
   deleteNews: async (id: string) => {
     const { error } = await supabase.from('news').delete().eq('id', id);
-    if(error) throw error;
+    if (error) throw new Error(error.message);
   },
 
   // --- PAYMENTS ---
   getPayments: async (): Promise<PaymentRequest[]> => {
-    const { data: payments } = await supabase.from('payments').select('*').order('created_at', { ascending: false });
+    const { data: payments, error } = await supabase.from('payments').select('*').order('created_at', { ascending: false });
+    if (error) console.error("Erro ao buscar pagamentos:", error);
     if (!payments) return [];
 
     return payments.map((p: any) => ({
@@ -147,7 +153,7 @@ export const StorageService = {
       itemName: p.item_name,
       itemPrice: p.item_price,
       playerNick: p.player_nick,
-      playerId: p.player_id, // Map database column
+      playerId: p.player_id,
       discordContact: p.discord_contact,
       proofImageUrl: p.proof_image_url,
       status: p.status,
@@ -190,8 +196,8 @@ export const StorageService = {
       item_name: payment.itemName,
       item_price: payment.itemPrice,
       player_nick: payment.playerNick,
-      player_id: payment.playerId, // Save ID to DB
-      discord_contact: payment.discordContact,
+      player_id: payment.playerId,
+      discord_contact: payment.discord_contact,
       proof_image_url: payment.proofImageUrl,
       status: 'PENDING'
     }]).select().single();
@@ -205,7 +211,7 @@ export const StorageService = {
     if(error) throw error;
   },
 
-  // --- MY ORDERS (Local ID Storage + Remote Fetch) ---
+  // --- MY ORDERS ---
   saveMyOrderId: (id: string) => {
     const stored = localStorage.getItem(STORAGE_KEYS.MY_ORDERS);
     let orders: string[] = stored ? JSON.parse(stored) : [];
@@ -220,7 +226,8 @@ export const StorageService = {
     const ids: string[] = stored ? JSON.parse(stored) : [];
     if (ids.length === 0) return [];
 
-    const { data } = await supabase.from('payments').select('*').in('id', ids).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('payments').select('*').in('id', ids).order('created_at', { ascending: false });
+    if (error) console.error("Erro ao buscar meus pedidos:", error);
     
     return (data || []).map((p: any) => ({
       id: p.id,
@@ -250,59 +257,61 @@ export const StorageService = {
 
   // --- CONFIG ---
   getConfig: async (): Promise<ServerConfig> => {
-    const { data } = await supabase.from('server_config').select('*').limit(1).single();
-    if (!data) return {
-       pcDownloadUrl: '', mobileDownloadUrl: '', discordUrl: '', pixKey: '', pixQrCodeUrl: '',
-       homeBackgroundUrl: '', aboutImageUrl: '', newsDefaultImageUrl: '',
-       capiCoinPrice: 1.0 // Default price
-    };
-    return {
-      pcDownloadUrl: data.pc_download_url,
-      mobileDownloadUrl: data.mobile_download_url,
-      discordUrl: data.discord_url,
-      pixKey: data.pix_key,
-      pixQrCodeUrl: data.pix_qr_code_url,
-      homeBackgroundUrl: data.home_background_url,
-      aboutImageUrl: data.about_image_url,
-      newsDefaultImageUrl: data.news_default_image_url,
-      capiCoinPrice: data.capi_coin_price || 1.0
-    };
+    try {
+      const { data, error } = await supabase.from('server_config').select('*').limit(1).single();
+      if (error || !data) throw new Error("No config found");
+      
+      return {
+        pcDownloadUrl: data.pc_download_url || '',
+        mobileDownloadUrl: data.mobile_download_url || '',
+        discordUrl: data.discord_url || '',
+        pixKey: data.pix_key || '',
+        pixQrCodeUrl: data.pix_qr_code_url || '',
+        homeBackgroundUrl: data.home_background_url || '',
+        aboutImageUrl: data.about_image_url || '',
+        newsDefaultImageUrl: data.news_default_image_url || '',
+        capiCoinPrice: data.capi_coin_price || 1.0,
+        discordWebhookUrl: data.discord_webhook_url || ''
+      };
+    } catch (e) {
+      return {
+        pcDownloadUrl: '', mobileDownloadUrl: '', discordUrl: '', pixKey: '', pixQrCodeUrl: '',
+        homeBackgroundUrl: '', aboutImageUrl: '', newsDefaultImageUrl: '',
+        capiCoinPrice: 1.0, discordWebhookUrl: ''
+      };
+    }
   },
+  
   saveConfig: async (config: ServerConfig) => {
-    // Check if exists
-    const { data } = await supabase.from('server_config').select('id').limit(1);
-    if (data && data.length > 0) {
-      const { error } = await supabase.from('server_config').update({
-         pc_download_url: config.pcDownloadUrl,
-         mobile_download_url: config.mobileDownloadUrl,
-         discord_url: config.discordUrl,
-         pix_key: config.pixKey,
-         pix_qr_code_url: config.pixQrCodeUrl,
-         home_background_url: config.homeBackgroundUrl,
-         about_image_url: config.aboutImageUrl,
-         news_default_image_url: config.newsDefaultImageUrl,
-         capi_coin_price: config.capiCoinPrice
-      }).eq('id', data[0].id);
+    const { data: existingData } = await supabase.from('server_config').select('id').limit(1);
+    
+    const payload: any = {
+      pc_download_url: config.pcDownloadUrl || '',
+      mobile_download_url: config.mobileDownloadUrl || '',
+      discord_url: config.discordUrl || '',
+      pix_key: config.pixKey || '',
+      pix_qr_code_url: config.pixQrCodeUrl || '',
+      home_background_url: config.homeBackgroundUrl || '',
+      about_image_url: config.aboutImageUrl || '',
+      // FIX: access property name with camelCase as defined in ServerConfig interface
+      news_default_image_url: config.newsDefaultImageUrl || '',
+      capi_coin_price: Number(config.capiCoinPrice) || 1.0,
+      discord_webhook_url: config.discordWebhookUrl || ''
+    };
+
+    if (existingData && existingData.length > 0) {
+      const { error } = await supabase.from('server_config').update(payload).eq('id', existingData[0].id);
       if(error) throw error;
     } else {
-      const { error } = await supabase.from('server_config').insert([{
-         pc_download_url: config.pcDownloadUrl,
-         mobile_download_url: config.mobileDownloadUrl,
-         discord_url: config.discordUrl,
-         pix_key: config.pixKey,
-         pix_qr_code_url: config.pixQrCodeUrl,
-         home_background_url: config.homeBackgroundUrl,
-         about_image_url: config.aboutImageUrl,
-         news_default_image_url: config.newsDefaultImageUrl,
-         capi_coin_price: config.capiCoinPrice
-      }]);
+      const { error } = await supabase.from('server_config').insert([payload]);
       if(error) throw error;
     }
   },
 
   // --- RANKINGS ---
   getRankings: async (): Promise<PlayerStats[]> => {
-     const { data } = await supabase.from('rankings').select('*').order('score', { ascending: false }).limit(10);
+     const { data, error } = await supabase.from('rankings').select('*').order('score', { ascending: false }).limit(10);
+     if (error) console.error("Erro ao buscar rankings:", error);
      return data || [];
   }
 };

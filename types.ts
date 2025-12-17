@@ -48,7 +48,7 @@ export interface PaymentRequest {
   itemName: string;
   itemPrice: number;
   playerNick: string;
-  playerId: number; // Novo campo
+  playerId: number;
   discordContact: string;
   proofImageUrl: string;
   status: PaymentStatus;
@@ -63,10 +63,9 @@ export interface ServerConfig {
   discordUrl: string;
   pixKey: string;
   pixQrCodeUrl: string;
-  // Visual Images
   homeBackgroundUrl: string;
   aboutImageUrl: string;
   newsDefaultImageUrl: string;
-  // Coins System
   capiCoinPrice: number;
+  discordWebhookUrl?: string; // Novo campo para notificações
 }
