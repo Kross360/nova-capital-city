@@ -197,7 +197,8 @@ export const StorageService = {
       item_price: payment.itemPrice,
       player_nick: payment.playerNick,
       player_id: payment.playerId,
-      discord_contact: payment.discord_contact,
+      // Fix: Use correct property name from payment object (discordContact instead of discord_contact)
+      discord_contact: payment.discordContact,
       proof_image_url: payment.proofImageUrl,
       status: 'PENDING'
     }]).select().single();
@@ -293,7 +294,6 @@ export const StorageService = {
       pix_qr_code_url: config.pixQrCodeUrl || '',
       home_background_url: config.homeBackgroundUrl || '',
       about_image_url: config.aboutImageUrl || '',
-      // FIX: access property name with camelCase as defined in ServerConfig interface
       news_default_image_url: config.newsDefaultImageUrl || '',
       capi_coin_price: Number(config.capiCoinPrice) || 1.0,
       discord_webhook_url: config.discordWebhookUrl || ''
