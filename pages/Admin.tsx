@@ -1,9 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { StorageService } from '../services/storage';
 import { ShopItem, Rule, NewsPost, Category, PaymentRequest, ServerConfig } from '../types';
-// Fix: Added LogIn icon to the imports list
-import { Trash2, Plus, LogOut, LogIn, LayoutGrid, ScrollText, Newspaper, CreditCard, CheckCircle, XCircle, Eye, RefreshCw, Settings, Save, Smartphone, Monitor, MessageCircle, ImageIcon, Send, Shield, User, Loader2, Coins, Pencil, X, BellRing, Lock } from 'lucide-react';
+import { Trash2, Plus, LogOut, LogIn, LayoutGrid, ScrollText, Newspaper, CreditCard, CheckCircle, XCircle, Eye, RefreshCw, Settings, Save, Smartphone, Monitor, MessageCircle, ImageIcon, Send, Shield, User, Loader2, Coins, Pencil, X, BellRing, Lock, Download, ExternalLink } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ToastSystem';
 
@@ -13,7 +11,7 @@ export const Admin: React.FC = () => {
   });
   
   const [password, setPassword] = useState('');
-  const [activeTab, setActiveTab] = useState<'SHOP' | 'RULES' | 'NEWS' | 'PAYMENTS' | 'CONFIG' | 'IMAGES'>('SHOP');
+  const [activeTab, setActiveTab] = useState<'SHOP' | 'RULES' | 'NEWS' | 'PAYMENTS' | 'CONFIG' | 'IMAGES'>('PAYMENTS');
   const [uploading, setUploading] = useState(false);
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
@@ -155,20 +153,22 @@ export const Admin: React.FC = () => {
     }
   };
 
-  // --- EXCLUSÃO COM FEEDBACK AGRESSIVO ---
+  const handleTestLink = (url: string) => {
+    if (!url) return addToast("A URL está vazia.", "error");
+    window.open(url, '_blank');
+  };
+
   const handleDeleteShopItem = async (id: string) => {
     if (!id) return;
-    if (!window.confirm("ATENÇÃO: Deseja realmente excluir este item? Isso removerá o item da loja para todos os jogadores.")) return;
+    if (!window.confirm("ATENÇÃO: Deseja realmente excluir este item?")) return;
     
     setDeletingId(id);
     try {
       await StorageService.deleteShopItem(id);
-      // Remove localmente imediatamente
       setShopItems(prev => prev.filter(item => item.id !== id));
-      addToast("Item removido com sucesso!", "success");
+      addToast("Item removido!", "success");
     } catch (err: any) {
-      console.error("Erro na exclusão:", err);
-      addToast("Erro crítico: Verifique se rodou o SQL no Supabase.", "error");
+      addToast("Erro ao excluir. Verifique o banco.", "error");
     } finally {
       setDeletingId(null);
     }
@@ -207,14 +207,13 @@ export const Admin: React.FC = () => {
   const handleSaveShopItem = async () => {
     if (!newItemName || !newItemPrice) return addToast("Preencha nome e preço.", 'error');
     setUploading(true);
-    const finalImageUrl = newItemImageUrl || `https://picsum.photos/400/300?random=${Date.now()}`;
     try {
       const itemData = {
         name: newItemName,
         description: newItemDesc,
         price: parseFloat(newItemPrice),
         category: newItemCat,
-        imageUrl: finalImageUrl
+        imageUrl: newItemImageUrl || `https://picsum.photos/400/300?random=${Date.now()}`
       };
       if (editingShopId) {
         await StorageService.updateShopItem(editingShopId, itemData);
@@ -249,13 +248,9 @@ export const Admin: React.FC = () => {
   };
 
   const handleSaveRule = async () => {
-    if(!newRuleTitle) return addToast("Defina um título para a regra.", 'error');
-    const ruleData = {
-      title: newRuleTitle,
-      content: newRuleContent,
-      category: newRuleCat as any
-    };
+    if(!newRuleTitle) return addToast("Defina um título.", 'error');
     try {
+      const ruleData = { title: newRuleTitle, content: newRuleContent, category: newRuleCat as any };
       if (editingRuleId) {
         await StorageService.updateRule(editingRuleId, ruleData);
         addToast('Regra atualizada!', 'success');
@@ -286,7 +281,6 @@ export const Admin: React.FC = () => {
   const handleSaveNews = async () => {
     if(!newNewsTitle || !newNewsSummary) return addToast("Preencha título e resumo.", 'error');
     setUploading(true);
-    const finalImageUrl = newNewsImageUrl || `https://picsum.photos/800/400?random=${Date.now()}`;
     try {
       const newsData = {
         title: newNewsTitle,
@@ -294,7 +288,7 @@ export const Admin: React.FC = () => {
         content: newNewsContent,
         author: 'Admin',
         date: new Date().toLocaleDateString('pt-BR'),
-        imageUrl: finalImageUrl
+        imageUrl: newNewsImageUrl || `https://picsum.photos/800/400?random=${Date.now()}`
       };
       if (editingNewsId) {
         await StorageService.updateNews(editingNewsId, newsData);
@@ -327,13 +321,13 @@ export const Admin: React.FC = () => {
   };
 
   const updatePaymentStatus = async (id: string, status: 'APPROVED' | 'REJECTED') => {
-    const note = prompt(status === 'APPROVED' ? "Mensagem de aprovação (opcional):" : "Motivo da recusa:");
+    const note = prompt(status === 'APPROVED' ? "Mensagem opcional (Será enviada ao jogador):" : "Motivo da recusa (Será visível ao jogador):");
     try {
       await StorageService.updatePaymentStatus(id, status, note || undefined);
-      addToast(`Status atualizado para ${status}`, 'success');
+      addToast(`Pedido marcado como ${status}`, 'success');
       await refreshAll();
     } catch (err: any) {
-      addToast("Erro ao atualizar pagamento.", "error");
+      addToast("Erro ao processar status.", "error");
     }
   };
 
@@ -354,62 +348,43 @@ export const Admin: React.FC = () => {
     setSavingConfig(true);
     try {
       await StorageService.saveConfig(config);
-      addToast('Configurações salvas!', 'success');
+      addToast('Configurações salvas com sucesso!', 'success');
       await refreshAll();
     } catch (err: any) {
-      addToast('Falha ao salvar configurações.', 'error');
+      addToast('Erro ao salvar no banco. Verifique as colunas SQL.', 'error');
     } finally {
       setSavingConfig(false);
     }
   };
 
-  // --- NOVA TELA DE LOGIN MELHORADA ---
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen fixed inset-0 z-[100] flex items-center justify-center p-4">
-        {/* Background com Blur Profundo */}
         <div className="absolute inset-0 bg-dark-900 overflow-hidden">
            <div className="absolute inset-0 opacity-20 bg-[url('https://picsum.photos/1920/1080?grayscale')] bg-cover bg-center blur-sm"></div>
            <div className="absolute inset-0 bg-gradient-to-br from-brand-900/40 via-dark-900/90 to-black"></div>
         </div>
-
         <div className="relative w-full max-w-md animate-fade-in-up">
-           <div className="bg-dark-800/80 backdrop-blur-xl p-10 rounded-3xl border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)]">
+           <div className="bg-dark-800/80 backdrop-blur-xl p-10 rounded-3xl border border-white/10 shadow-2xl">
              <div className="flex flex-col items-center mb-10">
-                <div className="w-20 h-20 bg-brand-600 rounded-2xl flex items-center justify-center text-white mb-6 shadow-2xl shadow-brand-600/40 transform -rotate-3">
+                <div className="w-20 h-20 bg-brand-600 rounded-2xl flex items-center justify-center text-white mb-6 shadow-2xl shadow-brand-600/40 transform rotate-3">
                    <Shield size={40} />
                 </div>
-                <h2 className="text-3xl font-black text-white tracking-tight text-center">
-                  ADMIN <span className="text-brand-500">PANEL</span>
-                </h2>
-                <p className="text-gray-400 text-sm mt-2 font-medium">Autenticação Capital City RP</p>
+                <h2 className="text-3xl font-black text-white tracking-tight text-center">ADMIN <span className="text-brand-500">PANEL</span></h2>
+                <p className="text-gray-400 text-sm font-medium mt-2">Área de Acesso Restrita</p>
              </div>
-
              <form onSubmit={handleLogin} className="space-y-6">
                 <div>
-                  <label className="block text-gray-400 text-xs font-bold uppercase tracking-widest mb-3 ml-1">Senha de Acesso</label>
+                  <label className="block text-gray-400 text-xs font-bold uppercase tracking-widest mb-3 ml-1">Senha Mestra</label>
                   <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-400 transition-colors" size={20} />
-                    <input 
-                      type="password" 
-                      value={password} 
-                      onChange={(e) => setPassword(e.target.value)} 
-                      className="w-full bg-dark-900/50 border border-white/10 text-white pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all text-lg font-mono tracking-widest" 
-                      placeholder="••••••••" 
-                      autoFocus
-                    />
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-500 transition-colors" size={20} />
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-dark-900/50 border border-white/10 text-white pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all font-mono tracking-widest" placeholder="••••••••" />
                   </div>
                 </div>
-                
-                <button className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-4 rounded-2xl transition-all shadow-xl shadow-brand-600/20 active:scale-95 flex items-center justify-center gap-3 text-lg">
-                  <LogIn size={22} />
-                  ENTRAR NO SISTEMA
+                <button className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-4 rounded-2xl transition-all shadow-xl shadow-brand-600/20 flex items-center justify-center gap-3 text-lg group">
+                  <LogIn size={22} className="group-hover:translate-x-1 transition-transform" /> ENTRAR NO SISTEMA
                 </button>
              </form>
-             
-             <div className="mt-8 pt-6 border-t border-white/5 text-center">
-                <p className="text-gray-600 text-xs font-medium">Acesso restrito a desenvolvedores e administradores.</p>
-             </div>
            </div>
         </div>
       </div>
@@ -420,14 +395,11 @@ export const Admin: React.FC = () => {
     <div className="max-w-7xl mx-auto px-4 py-12 relative">
       <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
         <div>
-           <h1 className="text-4xl font-black text-white flex items-center gap-3">
-             <Shield className="text-brand-500" size={32} />
-             Painel Administrativo
-           </h1>
-           <p className="text-gray-500 mt-1">Gerencie a economia e as regras de Capital City.</p>
+           <h1 className="text-4xl font-black text-white flex items-center gap-3"><Shield className="text-brand-500" size={32} /> Painel Administrativo</h1>
+           <p className="text-gray-500 mt-1">Gestão centralizada do servidor Capital City.</p>
         </div>
         <button onClick={handleLogout} className="bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white px-6 py-2 rounded-xl flex items-center gap-2 font-bold transition-all border border-red-500/20">
-          <LogOut size={18} /> Sair
+          <LogOut size={18} /> Encerrar Sessão
         </button>
       </div>
 
@@ -447,76 +419,75 @@ export const Admin: React.FC = () => {
               <ScrollText size={18} /> Gerenciar Regras
             </button>
             <button onClick={() => setActiveTab('NEWS')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'NEWS' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'text-gray-400 hover:bg-dark-700 hover:text-white'}`}>
-              <Newspaper size={18} /> Central News
+              <Newspaper size={18} /> Central de Notícias
             </button>
             <div className="h-px bg-white/5 my-4"></div>
             <button onClick={() => setActiveTab('CONFIG')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'CONFIG' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'text-gray-400 hover:bg-dark-700 hover:text-white'}`}>
               <Settings size={18} /> Config. Sistema
             </button>
             <button onClick={() => setActiveTab('IMAGES')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'IMAGES' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'text-gray-400 hover:bg-dark-700 hover:text-white'}`}>
-              <ImageIcon size={18} /> Identidade Visual
+              <ImageIcon size={18} /> Banners e Hero
             </button>
           </nav>
         </div>
 
         <div className="lg:col-span-3 bg-dark-800 rounded-2xl p-8 border border-white/5 min-h-[600px] shadow-xl">
           
-          {activeTab === 'IMAGES' && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="flex justify-between items-center border-b border-white/10 pb-6">
-                <h2 className="text-2xl font-black text-white">Identidade Visual</h2>
-                <button 
-                  onClick={handleSaveConfig} 
-                  disabled={savingConfig}
-                  className="bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-xl shadow-brand-600/20 transition-all"
-                >
-                  {savingConfig ? <Loader2 className="animate-spin" size={20}/> : <Save size={20} />}
-                  SALVAR TUDO
-                </button>
-              </div>
-              <div className="grid gap-8">
-                <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
-                  <h3 className="text-lg font-bold text-white mb-4">Hero Background (Home)</h3>
-                  <div className="grid md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-black text-gray-500 uppercase mb-2">URL Direta da Imagem</label>
-                      <input type="text" value={config.homeBackgroundUrl} onChange={(e) => setConfig({...config, homeBackgroundUrl: e.target.value})} className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-500 focus:outline-none" placeholder="https://..." />
-                    </div>
-                    <div className="h-32 rounded-2xl overflow-hidden border-2 border-brand-500/20 bg-dark-950 flex items-center justify-center relative">
-                        {config.homeBackgroundUrl ? <img src={config.homeBackgroundUrl} className="w-full h-full object-cover" alt="Preview"/> : <span className="text-gray-700 text-xs">Preview</span>}
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
-                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">Banner: Quem Somos</h3>
-                   <div className="grid md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2">
-                       <label className="block text-xs font-black text-gray-500 uppercase mb-2">URL Direta da Imagem</label>
-                       <input type="text" value={config.aboutImageUrl} onChange={(e) => setConfig({...config, aboutImageUrl: e.target.value})} className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-500 focus:outline-none" placeholder="https://..." />
-                    </div>
-                    <div className="h-32 rounded-2xl overflow-hidden border-2 border-brand-500/20 bg-dark-950 flex items-center justify-center">
-                        {config.aboutImageUrl ? <img src={config.aboutImageUrl} className="w-full h-full object-cover" alt="Preview"/> : <span className="text-gray-700 text-xs">Preview</span>}
-                    </div>
-                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-          
           {activeTab === 'CONFIG' && (
             <div className="space-y-8 animate-fade-in">
               <div className="flex justify-between items-center border-b border-white/10 pb-6">
-                <h2 className="text-2xl font-black text-white">Configurações Base</h2>
-                <button onClick={handleSaveConfig} disabled={savingConfig} className="bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-xl shadow-brand-600/20">
+                <h2 className="text-2xl font-black text-white">Configurações Gerais</h2>
+                <button onClick={handleSaveConfig} disabled={savingConfig} className="bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-xl shadow-brand-600/20 transition-all">
                   {savingConfig ? <Loader2 className="animate-spin" size={20}/> : <Save size={20} />}
-                  ATUALIZAR
+                  ATUALIZAR TUDO
                 </button>
               </div>
 
-              <div className="grid gap-6">
+              <div className="grid gap-8">
+                {/* Downloads Section */}
+                <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+                    <Download className="text-brand-500" size={20}/> URLs de Download (Launchers)
+                  </h3>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-gray-500 uppercase ml-1 flex items-center gap-1">
+                        <Monitor size={12}/> Launcher PC (.exe)
+                      </label>
+                      <div className="flex gap-2">
+                        <input 
+                          placeholder="https://link-do-download-pc.exe" 
+                          value={config.pcDownloadUrl} 
+                          onChange={e => setConfig({...config, pcDownloadUrl: e.target.value})} 
+                          className="flex-grow bg-dark-800 border border-white/10 p-4 rounded-xl text-white text-sm focus:border-brand-500 focus:outline-none transition-all"
+                        />
+                        <button onClick={() => handleTestLink(config.pcDownloadUrl)} className="bg-dark-700 hover:bg-brand-600 text-white p-4 rounded-xl transition-all" title="Testar Download">
+                          <ExternalLink size={18}/>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-black text-gray-500 uppercase ml-1 flex items-center gap-1">
+                        <Smartphone size={12}/> Launcher Mobile (.apk)
+                      </label>
+                      <div className="flex gap-2">
+                        <input 
+                          placeholder="https://link-do-download-mobile.apk" 
+                          value={config.mobileDownloadUrl} 
+                          onChange={e => setConfig({...config, mobileDownloadUrl: e.target.value})} 
+                          className="flex-grow bg-dark-800 border border-white/10 p-4 rounded-xl text-white text-sm focus:border-brand-500 focus:outline-none transition-all"
+                        />
+                        <button onClick={() => handleTestLink(config.mobileDownloadUrl)} className="bg-dark-700 hover:bg-brand-600 text-white p-4 rounded-xl transition-all" title="Testar Download">
+                          <ExternalLink size={18}/>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="bg-brand-600/10 p-6 rounded-2xl border border-brand-500/30">
                    <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                      <BellRing className="text-brand-500" size={20}/> Alertas Discord (Pedidos)
+                      <BellRing className="text-brand-500" size={20}/> Alertas Discord (Novos Pedidos)
                    </h3>
                    <div className="flex gap-4">
                       <input 
@@ -524,26 +495,30 @@ export const Admin: React.FC = () => {
                         placeholder="Discord Webhook URL" 
                         value={config.discordWebhookUrl} 
                         onChange={e => setConfig({...config, discordWebhookUrl: e.target.value})} 
-                        className="flex-grow bg-dark-900/50 border border-white/10 p-4 rounded-xl text-white focus:border-brand-500 focus:outline-none"
+                        className="flex-grow bg-dark-900/50 border border-white/10 p-4 rounded-xl text-white focus:border-brand-500 focus:outline-none font-mono text-xs"
                       />
-                      <button onClick={handleTestWebhook} disabled={testingWebhook} className="bg-white/10 hover:bg-white/20 text-white px-6 py-4 rounded-xl font-bold flex items-center gap-2">
+                      <button onClick={handleTestWebhook} disabled={testingWebhook} className="bg-white/10 hover:bg-white/20 text-white px-6 py-4 rounded-xl font-bold flex items-center gap-2 transition-all">
                         {testingWebhook ? <Loader2 className="animate-spin" size={18}/> : <Send size={18}/>}
+                        <span className="hidden sm:inline">TESTAR</span>
                       </button>
                    </div>
                 </div>
 
                 <div className="grid md:grid-cols-2 gap-6">
                    <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
-                      <h3 className="text-lg font-bold text-white mb-4">Cotação CapiCoin</h3>
+                      <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Coins className="text-yellow-500" size={20}/> Economia & CapiCoin</h3>
                       <div className="relative">
                         <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
-                        <input type="number" step="0.01" value={config.capiCoinPrice} onChange={e => setConfig({...config, capiCoinPrice: parseFloat(e.target.value) || 0})} className="w-full bg-dark-800 border border-white/10 p-4 pl-12 rounded-xl text-white font-bold" />
+                        <input type="number" step="0.01" value={config.capiCoinPrice} onChange={e => setConfig({...config, capiCoinPrice: parseFloat(e.target.value) || 0})} className="w-full bg-dark-800 border border-white/10 p-4 pl-12 rounded-xl text-white font-bold text-lg" />
                       </div>
+                      <p className="text-[10px] text-gray-500 mt-2">Preço por cada 1 unidade de CapiCoin no checkout.</p>
                    </div>
                    <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
-                      <h3 className="text-lg font-bold text-white mb-4">Social & Links</h3>
-                      <input placeholder="Invite do Discord" value={config.discordUrl} onChange={e => setConfig({...config, discordUrl: e.target.value})} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white mb-4"/>
-                      <input placeholder="Chave PIX Oficial" value={config.pixKey} onChange={e => setConfig({...config, pixKey: e.target.value})} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white"/>
+                      <h3 className="text-lg font-bold text-white mb-4">Social & Meios de Pagamento</h3>
+                      <label className="text-[10px] font-bold text-gray-600 uppercase mb-1 block">Convite Discord</label>
+                      <input placeholder="Ex: discord.gg/suacidade" value={config.discordUrl} onChange={e => setConfig({...config, discordUrl: e.target.value})} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white mb-4 text-sm"/>
+                      <label className="text-[10px] font-bold text-gray-600 uppercase mb-1 block">Chave PIX (E-mail, CPF, Aleatória)</label>
+                      <input placeholder="Chave para recebimento" value={config.pixKey} onChange={e => setConfig({...config, pixKey: e.target.value})} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white text-sm"/>
                    </div>
                 </div>
               </div>
@@ -553,7 +528,7 @@ export const Admin: React.FC = () => {
           {activeTab === 'SHOP' && (
             <div>
                <div className="flex justify-between items-center mb-8">
-                 <h2 className="text-2xl font-black text-white">Gerenciar Estoque</h2>
+                 <h2 className="text-2xl font-black text-white">Gerenciar Estoque da Loja</h2>
                  {editingShopId && (
                    <button onClick={resetShopForm} className="bg-red-500/20 text-red-400 px-4 py-2 rounded-xl font-bold hover:bg-red-500 hover:text-white transition-all">Cancelar Edição</button>
                  )}
@@ -561,15 +536,15 @@ export const Admin: React.FC = () => {
                <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 mb-12 bg-dark-900/50 p-8 rounded-3xl border ${editingShopId ? 'border-brand-500 shadow-2xl shadow-brand-600/10' : 'border-white/5'}`}>
                  <div className="space-y-4">
                     <label className="block text-xs font-black text-gray-500 uppercase ml-1">Nome do Produto</label>
-                    <input placeholder="Ex: Pacote VIP Platinum" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white"/>
+                    <input placeholder="Ex: Pacote VIP Platinum" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white focus:border-brand-500 focus:outline-none"/>
                  </div>
                  <div className="space-y-4">
                     <label className="block text-xs font-black text-gray-500 uppercase ml-1">Preço (BRL)</label>
-                    <input placeholder="0.00" type="number" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white font-mono"/>
+                    <input placeholder="0.00" type="number" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white font-mono focus:border-brand-500 focus:outline-none"/>
                  </div>
                  <div className="space-y-4">
                     <label className="block text-xs font-black text-gray-500 uppercase ml-1">Categoria</label>
-                    <select value={newItemCat} onChange={e => setNewItemCat(e.target.value as Category)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white appearance-none">
+                    <select value={newItemCat} onChange={e => setNewItemCat(e.target.value as Category)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white appearance-none focus:border-brand-500 focus:outline-none">
                         <option value="VIP">VIP</option>
                         <option value="COINS">CapiCoins</option>
                         <option value="VEHICLE">Veículo Especial</option>
@@ -579,12 +554,12 @@ export const Admin: React.FC = () => {
                     </select>
                  </div>
                  <div className="space-y-4">
-                    <label className="block text-xs font-black text-gray-500 uppercase ml-1">Descrição Curta</label>
-                    <input placeholder="Breve resumo dos benefícios..." value={newItemDesc} onChange={e => setNewItemDesc(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white"/>
+                    <label className="block text-xs font-black text-gray-500 uppercase ml-1">Descrição / Benefícios</label>
+                    <input placeholder="Curta descrição dos benefícios..." value={newItemDesc} onChange={e => setNewItemDesc(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white focus:border-brand-500 focus:outline-none"/>
                  </div>
                  <div className="col-span-1 md:col-span-2 space-y-4">
                     <label className="block text-xs font-black text-gray-500 uppercase ml-1">URL Direta da Imagem</label>
-                    <input placeholder="https://i.imgur.com/..." value={newItemImageUrl} onChange={e => setNewItemImageUrl(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white" />
+                    <input placeholder="https://i.imgur.com/..." value={newItemImageUrl} onChange={e => setNewItemImageUrl(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white focus:border-brand-500 focus:outline-none" />
                  </div>
                  <button onClick={handleSaveShopItem} disabled={uploading} className={`col-span-1 md:col-span-2 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all text-lg shadow-xl ${editingShopId ? 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-600/20' : 'bg-green-600 hover:bg-green-500 text-white shadow-green-600/20'}`}>
                     {uploading ? <Loader2 className="animate-spin"/> : editingShopId ? <Save size={22}/> : <Plus size={22}/>}
@@ -593,10 +568,10 @@ export const Admin: React.FC = () => {
                </div>
                
                <div className="space-y-3">
-                 <h3 className="text-gray-500 text-xs font-black uppercase tracking-widest ml-1 mb-4">Lista de Itens Ativos</h3>
+                 <h3 className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1 mb-4">Itens Ativos</h3>
                  {shopItems.length === 0 ? (
                     <div className="text-center py-20 bg-dark-900/30 rounded-3xl border border-dashed border-white/10">
-                       <p className="text-gray-600 font-bold">Nenhum item cadastrado.</p>
+                       <p className="text-gray-600 font-bold">Nenhum item cadastrado no sistema.</p>
                     </div>
                  ) : shopItems.map(i => (
                    <div key={i.id} className={`bg-dark-900/40 p-5 flex justify-between items-center text-white rounded-2xl border transition-all ${editingShopId === i.id ? 'border-brand-500 bg-brand-600/5' : 'border-white/5 hover:border-white/10'}`}>
@@ -606,9 +581,9 @@ export const Admin: React.FC = () => {
                         </div>
                         <div>
                             <p className="font-black text-lg">{i.name}</p>
-                            <div className="flex items-center gap-2 mt-1">
-                               <span className="text-[10px] bg-brand-600/20 text-brand-400 font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">{i.category}</span>
-                               <span className="text-sm text-gray-500 font-bold">R$ {i.price.toFixed(2)}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] bg-brand-600/20 text-brand-400 font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">{i.category}</span>
+                              <span className="text-xs text-gray-500 font-bold">R$ {i.price.toFixed(2)}</span>
                             </div>
                         </div>
                      </div>
@@ -630,12 +605,12 @@ export const Admin: React.FC = () => {
 
           {activeTab === 'RULES' && (
              <div className="animate-fade-in">
-                <h2 className="text-2xl font-black text-white mb-8">Gerenciar Constituição</h2>
+                <h2 className="text-2xl font-black text-white mb-8">Gerenciar Constituição (Regras)</h2>
                 <div className={`space-y-6 mb-12 bg-dark-900/50 p-8 rounded-3xl border ${editingRuleId ? 'border-brand-500' : 'border-white/5'}`}>
                     <div className="grid md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                            <label className="text-xs font-bold text-gray-600 ml-1">Categoria da Regra</label>
-                           <select value={newRuleCat} onChange={e => setNewRuleCat(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white">
+                           <select value={newRuleCat} onChange={e => setNewRuleCat(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white appearance-none focus:outline-none focus:border-brand-500">
                               <option value="GENERAL">Geral</option>
                               <option value="COMBAT">Combate / PVP</option>
                               <option value="ILLEGAL">Ilegal / Facções</option>
@@ -644,12 +619,12 @@ export const Admin: React.FC = () => {
                         </div>
                         <div className="space-y-2">
                            <label className="text-xs font-bold text-gray-600 ml-1">Título do Artigo</label>
-                           <input placeholder="Ex: Anti-RP e VDM" value={newRuleTitle} onChange={e => setNewRuleTitle(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white"/>
+                           <input placeholder="Ex: Anti-RP e VDM" value={newRuleTitle} onChange={e => setNewRuleTitle(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white focus:outline-none focus:border-brand-500"/>
                         </div>
                     </div>
                     <div className="space-y-2">
-                       <label className="text-xs font-bold text-gray-600 ml-1">Texto Detalhado</label>
-                       <textarea placeholder="Explique a regra com clareza..." value={newRuleContent} onChange={e => setNewRuleContent(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white h-32"/>
+                       <label className="text-xs font-bold text-gray-600 ml-1">Texto do Artigo</label>
+                       <textarea placeholder="Descreva a regra detalhadamente..." value={newRuleContent} onChange={e => setNewRuleContent(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white h-32 focus:outline-none focus:border-brand-500 resize-none"/>
                     </div>
                     <button onClick={handleSaveRule} className={`text-white py-4 rounded-xl font-black w-full shadow-xl transition-all ${editingRuleId ? 'bg-brand-600 hover:bg-brand-500' : 'bg-green-600 hover:bg-green-500'}`}>
                       {editingRuleId ? 'ATUALIZAR ARTIGO' : 'PUBLICAR REGRA'}
@@ -663,8 +638,8 @@ export const Admin: React.FC = () => {
                         <p className="font-black text-lg">{r.title}</p>
                      </div>
                      <div className="flex items-center gap-2">
-                        <button onClick={() => startEditRule(r)} className="bg-white/5 text-brand-400 p-3 rounded-xl"><Pencil size={18}/></button>
-                        <button onClick={() => handleDeleteRule(r.id)} className="bg-white/5 text-red-500 p-3 rounded-xl"><Trash2 size={18}/></button>
+                        <button onClick={() => startEditRule(r)} className="bg-white/5 text-brand-400 p-3 rounded-xl hover:bg-brand-600/20 transition-all"><Pencil size={18}/></button>
+                        <button onClick={() => handleDeleteRule(r.id)} className="bg-white/5 text-red-500 p-3 rounded-xl hover:bg-red-500/20 transition-all"><Trash2 size={18}/></button>
                      </div>
                    </div>
                  ))}
@@ -674,28 +649,28 @@ export const Admin: React.FC = () => {
 
           {activeTab === 'NEWS' && (
              <div className="animate-fade-in">
-                <h2 className="text-2xl font-black text-white mb-8">Notícias & Patch Notes</h2>
+                <h2 className="text-2xl font-black text-white mb-8">Postagens da Central de Notícias</h2>
                 <div className={`space-y-6 mb-12 bg-dark-900/50 p-8 rounded-3xl border ${editingNewsId ? 'border-brand-500' : 'border-white/5'}`}>
-                    <input placeholder="Título da Notícia" value={newNewsTitle} onChange={e => setNewNewsTitle(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white font-black text-lg"/>
-                    <input placeholder="Resumo Chamativo (Aparece no card)" value={newNewsSummary} onChange={e => setNewNewsSummary(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white"/>
-                    <textarea placeholder="Conteúdo completo da postagem..." value={newNewsContent} onChange={e => setNewNewsContent(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white h-48"/>
-                    <input placeholder="URL da Capa da Notícia" value={newNewsImageUrl} onChange={e => setNewNewsImageUrl(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white" />
+                    <input placeholder="Título Chamativo" value={newNewsTitle} onChange={e => setNewNewsTitle(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white font-black text-lg focus:outline-none focus:border-brand-500"/>
+                    <input placeholder="Resumo (Aparece no Card inicial)" value={newNewsSummary} onChange={e => setNewNewsSummary(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white focus:outline-none focus:border-brand-500"/>
+                    <textarea placeholder="Conteúdo completo da postagem..." value={newNewsContent} onChange={e => setNewNewsContent(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white h-48 focus:outline-none focus:border-brand-500 resize-none"/>
+                    <input placeholder="URL da Capa (Imagem de Destaque)" value={newNewsImageUrl} onChange={e => setNewNewsImageUrl(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white focus:outline-none focus:border-brand-500" />
                     <button onClick={handleSaveNews} disabled={uploading} className={`text-white py-4 rounded-xl font-black w-full shadow-xl transition-all ${editingNewsId ? 'bg-brand-600 hover:bg-brand-500' : 'bg-green-600 hover:bg-green-500'}`}>
-                       {uploading ? <Loader2 className="animate-spin mx-auto"/> : editingNewsId ? 'SALVAR EDIÇÃO' : 'PUBLICAR AGORA'}
+                       {uploading ? <Loader2 className="animate-spin mx-auto"/> : editingNewsId ? 'SALVAR EDIÇÃO' : 'PUBLICAR POSTAGEM'}
                     </button>
                 </div>
                 <div className="grid md:grid-cols-2 gap-4">
                  {news.map(n => (
                    <div key={n.id} className="bg-dark-900/40 p-5 flex justify-between items-center text-white rounded-2xl border border-white/5">
-                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-black shrink-0">
+                     <div className="flex items-center gap-3 truncate">
+                        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0">
                            <img src={n.imageUrl} className="w-full h-full object-cover" />
                         </div>
-                        <p className="font-bold truncate max-w-[150px]">{n.title}</p>
+                        <p className="font-bold truncate">{n.title}</p>
                      </div>
-                     <div className="flex items-center gap-2">
-                        <button onClick={() => startEditNews(n)} className="bg-white/5 text-brand-400 p-3 rounded-xl"><Pencil size={18}/></button>
-                        <button onClick={() => handleDeleteNews(n.id)} className="bg-white/5 text-red-500 p-3 rounded-xl"><Trash2 size={18}/></button>
+                     <div className="flex items-center gap-2 shrink-0">
+                        <button onClick={() => startEditNews(n)} className="bg-white/5 text-brand-400 p-3 rounded-xl hover:bg-brand-600/20 transition-all"><Pencil size={18}/></button>
+                        <button onClick={() => handleDeleteNews(n.id)} className="bg-white/5 text-red-500 p-3 rounded-xl hover:bg-red-500/20 transition-all"><Trash2 size={18}/></button>
                      </div>
                    </div>
                  ))}
@@ -706,14 +681,17 @@ export const Admin: React.FC = () => {
           {activeTab === 'PAYMENTS' && (
             <div className="animate-fade-in">
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-black text-white">Fila de Pagamentos</h2>
-                <button onClick={refreshAll} className="bg-brand-600/10 text-brand-400 p-3 rounded-xl hover:bg-brand-600 hover:text-white transition-all"><RefreshCw size={20}/></button>
+                <h2 className="text-2xl font-black text-white">Fila de Compras & Pagamentos</h2>
+                <button onClick={refreshAll} className="bg-brand-600/10 text-brand-400 p-3 rounded-xl hover:bg-brand-600 hover:text-white transition-all flex items-center gap-2">
+                  <RefreshCw size={18}/>
+                  <span className="text-xs font-black">ATUALIZAR</span>
+                </button>
               </div>
               
               {payments.length === 0 ? (
-                 <div className="text-center py-32 text-gray-700">
+                 <div className="text-center py-32 text-gray-700 bg-dark-900/20 rounded-3xl border border-dashed border-white/5">
                     <CreditCard size={64} className="mx-auto mb-4 opacity-10" />
-                    <p className="font-bold">Nenhum pedido registrado no sistema.</p>
+                    <p className="font-bold">Nenhum pedido pendente no momento.</p>
                  </div>
               ) : (
                 <div className="grid gap-6">
@@ -722,25 +700,25 @@ export const Admin: React.FC = () => {
                       <div className="flex flex-col lg:flex-row justify-between gap-6">
                         <div className="flex-grow">
                            <div className="flex items-center gap-3 mb-4">
-                             <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${payment.status === 'PENDING' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : payment.status === 'APPROVED' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{payment.status === 'PENDING' ? 'Novo Pedido' : payment.status}</span>
+                             <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${payment.status === 'PENDING' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : payment.status === 'APPROVED' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{payment.status}</span>
                              <span className="text-[10px] text-gray-500 font-bold uppercase">{payment.createdAt}</span>
                            </div>
                            <h3 className="font-black text-white text-2xl mb-1">{payment.itemName}</h3>
                            <p className="text-brand-400 font-black mb-4 tracking-tight">R$ {payment.itemPrice.toFixed(2)}</p>
                            
-                           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-dark-950/50 p-4 rounded-2xl border border-white/5">
-                             <div><p className="text-[10px] text-gray-600 font-black uppercase mb-1 tracking-tighter">Jogador</p><p className="text-sm text-white font-bold">{payment.playerNick}</p></div>
-                             <div><p className="text-[10px] text-gray-600 font-black uppercase mb-1 tracking-tighter">Game ID</p><p className="text-sm text-white font-mono">#{payment.playerId}</p></div>
-                             <div><p className="text-[10px] text-gray-600 font-black uppercase mb-1 tracking-tighter">Discord</p><p className="text-sm text-white font-bold truncate">{payment.discordContact}</p></div>
+                           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-dark-950/50 p-4 rounded-2xl border border-white/5 text-sm text-gray-300">
+                             <div><p className="text-[10px] text-gray-600 font-black uppercase mb-1">Jogador</p><span className="font-bold">{payment.playerNick}</span></div>
+                             <div><p className="text-[10px] text-gray-600 font-black uppercase mb-1">ID Jogo</p><span className="font-mono text-xs">#{payment.playerId}</span></div>
+                             <div><p className="text-[10px] text-gray-600 font-black uppercase mb-1">Discord</p><span className="font-medium text-xs">{payment.discordContact}</span></div>
                            </div>
                         </div>
                         <div className="flex lg:flex-col gap-2 shrink-0 justify-end lg:justify-start">
-                           <button onClick={() => setChatOrder(payment)} className="flex-1 lg:flex-none bg-brand-600 hover:bg-brand-500 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm shadow-xl shadow-brand-600/10"><MessageCircle size={18} /> Chat</button>
-                           <button onClick={() => setViewingProof(payment.proofImageUrl)} className="flex-1 lg:flex-none bg-white/5 hover:bg-white/10 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm"><Eye size={18} /> Ver Print</button>
+                           <button onClick={() => setChatOrder(payment)} className="flex-1 lg:flex-none bg-brand-600 hover:bg-brand-500 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm shadow-lg shadow-brand-600/10 transition-all active:scale-95"><MessageCircle size={18} /> Chat</button>
+                           <button onClick={() => setViewingProof(payment.proofImageUrl)} className="flex-1 lg:flex-none bg-white/5 hover:bg-white/10 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm transition-all"><Eye size={18} /> Ver Print</button>
                            {payment.status === 'PENDING' && (
                             <div className="flex lg:flex-col gap-2">
-                              <button onClick={() => updatePaymentStatus(payment.id, 'APPROVED')} className="bg-green-600 hover:bg-green-500 text-white px-5 py-3 rounded-xl font-black flex items-center justify-center gap-2 text-sm shadow-xl shadow-green-600/10"><CheckCircle size={18} /> APROVAR</button>
-                              <button onClick={() => updatePaymentStatus(payment.id, 'REJECTED')} className="bg-red-500 hover:bg-red-600 text-white px-5 py-3 rounded-xl font-black flex items-center justify-center gap-2 text-sm shadow-xl shadow-red-600/10"><XCircle size={18} /> RECUSAR</button>
+                              <button onClick={() => updatePaymentStatus(payment.id, 'APPROVED')} className="bg-green-600 hover:bg-green-500 text-white px-5 py-3 rounded-xl font-black flex items-center justify-center gap-2 text-sm shadow-xl shadow-green-600/10 transition-all active:scale-95"><CheckCircle size={18} /> APROVAR</button>
+                              <button onClick={() => updatePaymentStatus(payment.id, 'REJECTED')} className="bg-red-500 hover:bg-red-600 text-white px-5 py-3 rounded-xl font-black flex items-center justify-center gap-2 text-sm shadow-xl shadow-red-600/10 transition-all active:scale-95"><XCircle size={18} /> RECUSAR</button>
                             </div>
                            )}
                         </div>
@@ -751,43 +729,86 @@ export const Admin: React.FC = () => {
               )}
             </div>
           )}
+
+          {activeTab === 'IMAGES' && (
+            <div className="space-y-8 animate-fade-in">
+              <div className="flex justify-between items-center border-b border-white/10 pb-6">
+                <h2 className="text-2xl font-black text-white">Identidade Visual (Banners)</h2>
+                <button onClick={handleSaveConfig} disabled={savingConfig} className="bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-xl shadow-brand-600/20 transition-all">
+                  {savingConfig ? <Loader2 className="animate-spin" size={20}/> : <Save size={20} />}
+                  SALVAR IMAGENS
+                </button>
+              </div>
+              <div className="grid gap-8">
+                <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
+                  <h3 className="text-lg font-bold text-white mb-4">Background Hero (Home)</h3>
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-black text-gray-500 uppercase mb-2 ml-1">URL Direta da Imagem</label>
+                      <input type="text" value={config.homeBackgroundUrl} onChange={(e) => setConfig({...config, homeBackgroundUrl: e.target.value})} className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-500 focus:outline-none transition-all" placeholder="https://i.imgur.com/..." />
+                    </div>
+                    <div className="h-32 rounded-2xl overflow-hidden border-2 border-brand-500/20 bg-dark-950 flex items-center justify-center group relative">
+                        {config.homeBackgroundUrl ? <img src={config.homeBackgroundUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="Preview"/> : <span className="text-gray-700 text-xs">Sem Preview</span>}
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
+                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">Banner Seção "Sobre"</h3>
+                   <div className="grid md:grid-cols-3 gap-6">
+                    <div className="md:col-span-2">
+                       <label className="block text-xs font-black text-gray-500 uppercase mb-2 ml-1">URL Direta da Imagem</label>
+                       <input type="text" value={config.aboutImageUrl} onChange={(e) => setConfig({...config, aboutImageUrl: e.target.value})} className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-500 focus:outline-none transition-all" placeholder="https://i.imgur.com/..." />
+                    </div>
+                    <div className="h-32 rounded-2xl overflow-hidden border-2 border-brand-500/20 bg-dark-950 flex items-center justify-center group relative">
+                        {config.aboutImageUrl ? <img src={config.aboutImageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="Preview"/> : <span className="text-gray-700 text-xs">Sem Preview</span>}
+                    </div>
+                   </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Modais com design consistente */}
+      {/* Proof Viewer Modal */}
       {viewingProof && (
         <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={() => setViewingProof(null)}>
-          <div className="bg-dark-900 p-2 rounded-3xl max-w-3xl max-h-[90vh] overflow-auto relative border border-white/10 shadow-2xl">
+          <div className="bg-dark-900 p-2 rounded-3xl max-w-3xl max-h-[90vh] overflow-auto relative border border-white/10 shadow-2xl shadow-brand-500/10" onClick={e => e.stopPropagation()}>
             <button className="absolute top-6 right-6 text-white bg-black/50 p-3 rounded-full hover:bg-red-500 transition-all z-20" onClick={() => setViewingProof(null)}><X size={24} /></button>
-            <img src={viewingProof} alt="Comprovante Bancário" className="max-w-full rounded-2xl" />
+            <img src={viewingProof} alt="Comprovante Bancário" className="max-w-full rounded-2xl shadow-2xl" />
           </div>
         </div>
       )}
 
+      {/* Admin Chat Modal */}
       {chatOrder && (
          <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-           <div className="bg-dark-800 w-full max-w-xl rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col h-[650px]">
+           <div className="bg-dark-800 w-full max-w-xl rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col h-[650px]" onClick={e => e.stopPropagation()}>
              <div className="bg-dark-900 p-6 border-b border-white/5 flex justify-between items-center">
                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-brand-600/20 rounded-xl flex items-center justify-center text-brand-400 font-bold border border-brand-500/20">
+                  <div className="w-12 h-12 bg-brand-600/20 rounded-xl flex items-center justify-center text-brand-400 font-bold border border-brand-500/20 shadow-inner">
                     {chatOrder.playerNick.charAt(0)}
                   </div>
                   <div>
                     <h3 className="font-black text-white text-lg leading-tight">{chatOrder.playerNick}</h3>
-                    <p className="text-xs text-gray-500 font-bold">{chatOrder.itemName}</p>
+                    <p className="text-xs text-gray-500 font-medium">{chatOrder.itemName}</p>
                   </div>
                </div>
-               <button onClick={() => setChatOrder(null)} className="text-gray-500 hover:text-white p-2 transition-all"><XCircle size={32} /></button>
+               <button onClick={() => setChatOrder(null)} className="text-gray-500 hover:text-white p-2 transition-all hover:rotate-90"><XCircle size={32} /></button>
              </div>
              
-             <div className="flex-grow bg-dark-900/30 p-6 overflow-y-auto space-y-6">
-                {chatOrder.messages?.map((msg) => (
+             <div className="flex-grow bg-dark-900/30 p-6 overflow-y-auto space-y-6 scrollbar-hide">
+                {chatOrder.messages?.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-gray-700 space-y-4">
+                    <MessageCircle size={48} className="opacity-10"/>
+                    <p className="text-sm font-bold">Inicie a conversa com o jogador.</p>
+                  </div>
+                ) : chatOrder.messages?.map((msg) => (
                   <div key={msg.id} className={`flex ${msg.sender === 'ADMIN' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-3xl px-5 py-4 ${msg.sender === 'ADMIN' ? 'bg-brand-600 text-white rounded-tr-none shadow-lg shadow-brand-600/10' : 'bg-dark-700 text-gray-200 rounded-tl-none border border-white/10'}`}>
+                    <div className={`max-w-[85%] rounded-3xl px-5 py-4 shadow-md ${msg.sender === 'ADMIN' ? 'bg-brand-600 text-white rounded-tr-none' : 'bg-dark-700 text-gray-200 rounded-tl-none border border-white/10'}`}>
                       <div className="flex items-center gap-2 mb-2">
                          <span className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1">
-                            {msg.sender === 'ADMIN' ? <Shield size={10}/> : <User size={10}/>}
-                            {msg.sender === 'ADMIN' ? 'SISTEMA' : 'PLAYER'}
+                            {msg.sender === 'ADMIN' ? <Shield size={10}/> : <User size={10}/>} {msg.sender}
                          </span>
                          <span className="text-[10px] opacity-40 font-bold">{msg.timestamp}</span>
                       </div>
@@ -799,8 +820,8 @@ export const Admin: React.FC = () => {
              </div>
              
              <form onSubmit={handleSendAdminMessage} className="p-6 bg-dark-800 border-t border-white/5 flex gap-3">
-                <input className="flex-grow bg-dark-900 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all" placeholder="Escreva uma mensagem para o jogador..." value={chatMessageInput} onChange={(e) => setChatMessageInput(e.target.value)} />
-                <button type="submit" className="bg-brand-600 hover:bg-brand-500 text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shadow-brand-600/20 active:scale-95 transition-all"><Send size={24} /></button>
+                <input className="flex-grow bg-dark-900 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-500 transition-all shadow-inner" placeholder="Escreva uma mensagem para o jogador..." value={chatMessageInput} onChange={(e) => setChatMessageInput(e.target.value)} />
+                <button type="submit" className="bg-brand-600 hover:bg-brand-500 text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-all shrink-0"><Send size={24} /></button>
              </form>
            </div>
          </div>
