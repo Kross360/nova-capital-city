@@ -1,5 +1,5 @@
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { StorageService } from '../services/storage';
 import { ShopItem, ServerConfig } from '../types';
@@ -118,27 +118,27 @@ export const Checkout: React.FC = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-dark-900 flex items-center justify-center">
-        <Loader2 className="animate-spin text-brand-500" size={48} />
+        <Loader2 className="animate-spin text-brand-500" size={32} />
       </div>
     );
   }
 
   if (submitted) {
     return (
-      <div className="min-h-[80vh] flex items-center justify-center px-6 animate-fade-in">
-        <div className="max-w-xl w-full bg-dark-800 border border-brand-500/30 rounded-[3rem] p-12 text-center shadow-2xl relative">
-          <div className="w-24 h-24 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-8 text-green-500 shadow-inner">
-            <CheckCircle size={56} />
+      <div className="min-h-[70vh] flex items-center justify-center px-4 animate-fade-in">
+        <div className="max-w-md w-full bg-dark-800 border border-brand-500/20 rounded-3xl p-8 text-center shadow-2xl">
+          <div className="w-16 h-16 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-green-500">
+            <CheckCircle size={40} />
           </div>
-          <h2 className="text-4xl font-black text-white mb-4 uppercase tracking-tighter">Pedido Enviado!</h2>
-          <p className="text-gray-400 mb-10 text-lg">Seu comprovante está em análise. Acompanhe pelo ID abaixo:</p>
-          <div className="bg-dark-900 rounded-[2rem] p-8 mb-10 border border-white/5 relative shadow-inner">
-             <p className="text-2xl font-mono text-white font-black tracking-widest">{createdOrderId.slice(0, 8).toUpperCase()}</p>
-             <button onClick={() => { navigator.clipboard.writeText(createdOrderId); addToast('ID Copiado!', 'success'); }} className="absolute right-6 top-1/2 -translate-y-1/2 text-brand-400 hover:text-white transition-colors"><Copy size={24} /></button>
+          <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-tight">Pedido Enviado</h2>
+          <p className="text-gray-500 mb-6 text-sm">Seu comprovante está em análise.</p>
+          <div className="bg-dark-900 rounded-2xl p-4 mb-6 border border-white/5 flex items-center justify-between">
+             <p className="text-sm font-mono text-white font-bold tracking-widest">{createdOrderId.slice(0, 8).toUpperCase()}</p>
+             <button onClick={() => { navigator.clipboard.writeText(createdOrderId); addToast('ID Copiado!', 'success'); }} className="text-brand-400 hover:text-white"><Copy size={18} /></button>
           </div>
-          <div className="grid gap-4">
-             <Link to={`/track/${createdOrderId}`} className="block w-full bg-brand-600 hover:bg-brand-500 text-white font-black py-5 rounded-2xl flex items-center justify-center gap-4 text-lg shadow-xl shadow-brand-600/20"><MessageSquare size={24} /> ACOMPANHAR STATUS</Link>
-             <Link to="/shop" className="block w-full bg-white/5 text-white font-black py-5 rounded-2xl hover:bg-white/10">VOLTAR PARA LOJA</Link>
+          <div className="space-y-3">
+             <Link to={`/track/${createdOrderId}`} className="block w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-brand-600/10"><MessageSquare size={18} /> RASTREAR</Link>
+             <Link to="/shop" className="block w-full bg-white/5 text-gray-400 font-bold py-3 rounded-xl hover:bg-white/10 text-sm">Voltar para Loja</Link>
           </div>
         </div>
       </div>
@@ -146,101 +146,99 @@ export const Checkout: React.FC = () => {
   }
 
   return (
-    <div className="py-16 px-6 max-w-7xl mx-auto">
-      <Link to="/shop" className="text-gray-500 hover:text-white flex items-center gap-3 mb-12 transition-colors font-black text-sm uppercase tracking-widest"><ArrowLeft size={24} /> Cancelar Checkout</Link>
+    <div className="py-8 px-4 max-w-6xl mx-auto">
+      <Link to="/shop" className="text-gray-500 hover:text-white inline-flex items-center gap-2 mb-6 transition-colors font-bold text-xs uppercase tracking-widest">
+        <ArrowLeft size={18} /> Cancelar Checkout
+      </Link>
       
-      <div className="grid lg:grid-cols-12 gap-12">
+      <div className="grid lg:grid-cols-12 gap-8">
+        {/* Resumo do Pedido (Compacto) */}
         <div className="lg:col-span-4">
-          <div className="bg-dark-800 rounded-[2.5rem] p-10 border border-white/5 sticky top-28 shadow-2xl">
-            <h3 className="text-xl font-black text-white mb-8 border-b border-white/5 pb-6 uppercase tracking-tighter">Seu Pedido</h3>
-            <div className="mb-8 rounded-3xl overflow-hidden h-48 bg-dark-900 flex items-center justify-center border border-white/5 relative group">
+          <div className="bg-dark-800 rounded-2xl p-6 border border-white/5 sticky top-24 shadow-xl">
+            <h3 className="text-sm font-black text-gray-400 mb-4 uppercase tracking-widest border-b border-white/5 pb-3">Resumo</h3>
+            <div className="mb-4 rounded-xl overflow-hidden h-32 bg-dark-900 flex items-center justify-center border border-white/5">
               {isCoinPurchase ? (
-                <Coins size={100} className="text-yellow-400 drop-shadow-2xl group-hover:scale-110 transition-transform" />
+                <Coins size={64} className="text-yellow-400" />
               ) : (
-                item && <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                item && <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
               )}
             </div>
-            <h4 className="font-black text-white text-3xl mb-2 tracking-tighter">{isCoinPurchase ? 'Pacote CapiCoins' : (item?.name || 'Carregando...')}</h4>
+            <h4 className="font-bold text-white text-lg mb-1 tracking-tight">{isCoinPurchase ? 'Pacote CapiCoins' : (item?.name || 'Carregando...')}</h4>
             
             {isCoinPurchase && (
-               <div className="mb-10 bg-dark-950 p-6 rounded-2xl border border-yellow-500/20 shadow-inner">
-                  <label className="block text-gray-500 text-[10px] font-black uppercase tracking-widest mb-4 text-center">Definir Quantidade</label>
-                  <div className="flex items-center justify-between gap-4">
-                     <button onClick={() => setCoinQuantity(Math.max(1, coinQuantity - 10))} className="p-3 text-gray-400 hover:text-white bg-white/5 rounded-xl transition-all"><Minus size={20}/></button>
-                     <input type="number" min="1" value={coinQuantity} onChange={e => setCoinQuantity(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-transparent text-center text-white font-black text-3xl focus:outline-none" />
-                     <button onClick={() => setCoinQuantity(coinQuantity + 10)} className="p-3 text-gray-400 hover:text-white bg-white/5 rounded-xl transition-all"><Plus size={20}/></button>
+               <div className="my-4 bg-dark-950 p-4 rounded-xl border border-yellow-500/10">
+                  <div className="flex items-center justify-between gap-3">
+                     <button onClick={() => setCoinQuantity(Math.max(1, coinQuantity - 10))} className="p-2 text-gray-500 hover:text-white bg-white/5 rounded-lg"><Minus size={16}/></button>
+                     <input type="number" min="1" value={coinQuantity} onChange={e => setCoinQuantity(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-transparent text-center text-white font-black text-xl focus:outline-none" />
+                     <button onClick={() => setCoinQuantity(coinQuantity + 10)} className="p-2 text-gray-500 hover:text-white bg-white/5 rounded-lg"><Plus size={16}/></button>
                   </div>
                </div>
             )}
 
-            <div className="flex justify-between items-center text-gray-400 mb-4 pt-6 border-t border-white/5">
-              <span className="font-bold text-sm uppercase tracking-widest">Total Final</span>
-              <span className="text-white font-black text-4xl tracking-tighter">R$ {currentTotal.toFixed(2)}</span>
+            <div className="flex justify-between items-center text-gray-400 mt-4 pt-4 border-t border-white/5">
+              <span className="font-bold text-[10px] uppercase tracking-widest">Total</span>
+              <span className="text-white font-black text-2xl">R$ {currentTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
+        {/* Pagamento e Dados (Compacto) */}
         <div className="lg:col-span-8">
-          <div className="bg-dark-800 rounded-[3.5rem] p-12 border border-white/5 shadow-2xl">
-            <h1 className="text-4xl font-black text-white mb-10 flex items-center gap-5 tracking-tighter uppercase"><CreditCard className="text-brand-500" size={40} /> Pagamento PIX</h1>
+          <div className="bg-dark-800 rounded-2xl p-8 border border-white/5 shadow-xl">
+            <h1 className="text-2xl font-black text-white mb-8 flex items-center gap-3 tracking-tight uppercase"><CreditCard className="text-brand-500" size={24} /> Pagamento PIX</h1>
             
-            <div className="bg-gradient-to-br from-dark-900 to-dark-800 p-8 rounded-[2.5rem] border border-brand-500/20 mb-12 flex flex-col md:flex-row items-center gap-10 shadow-inner">
-               <div className="bg-white p-3 rounded-3xl shrink-0 shadow-2xl">
-                 {config.pixQrCodeUrl ? <img src={config.pixQrCodeUrl} alt="QR Code" className="w-32 h-32 object-contain" /> : <QrCode size={120} className="text-black" />}
+            <div className="bg-dark-900/50 p-6 rounded-2xl border border-brand-500/10 mb-8 flex flex-col sm:flex-row items-center gap-6">
+               <div className="bg-white p-2 rounded-xl shrink-0">
+                 {config.pixQrCodeUrl ? <img src={config.pixQrCodeUrl} alt="QR Code" className="w-24 h-24" /> : <QrCode size={96} className="text-black" />}
                </div>
-               <div className="flex-grow w-full">
-                 <h3 className="text-white font-black text-xl mb-2 uppercase">Chave PIX Oficial</h3>
-                 <p className="text-gray-500 text-sm mb-6 font-medium">Copie a chave e pague pelo app do seu banco.</p>
+               <div className="flex-grow w-full text-center sm:text-left">
+                 <h3 className="text-white font-bold text-sm uppercase tracking-tight mb-1">Copia e Cola</h3>
+                 <p className="text-gray-500 text-xs mb-4">Pague rapidamente via chave PIX.</p>
                  <div className="relative">
-                   <input readOnly value={config.pixKey} className="w-full bg-dark-950 border border-white/5 rounded-2xl p-5 text-brand-400 font-mono text-lg pr-16 shadow-inner" />
-                   <button onClick={() => { navigator.clipboard.writeText(config.pixKey); addToast("Chave PIX Copiada!", "success"); }} className="absolute right-4 top-1/2 -translate-y-1/2 text-brand-400 hover:text-white transition-colors bg-brand-900/50 p-2 rounded-xl"><Copy size={24} /></button>
+                   <input readOnly value={config.pixKey} className="w-full bg-dark-950 border border-white/5 rounded-xl p-3 text-brand-400 font-mono text-sm pr-12" />
+                   <button onClick={() => { navigator.clipboard.writeText(config.pixKey); addToast("Copiada!", "info"); }} className="absolute right-2 top-1/2 -translate-y-1/2 text-brand-400 hover:text-white p-1.5"><Copy size={18} /></button>
                  </div>
                </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Nick no Servidor</label>
-                  <input type="text" required value={playerNick} onChange={(e) => setPlayerNick(e.target.value)} className="w-full bg-dark-900/50 border border-white/10 rounded-2xl p-5 text-white focus:border-brand-500 outline-none" placeholder="Nome_Sobrenome" />
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Nick RP</label>
+                  <input type="text" required value={playerNick} onChange={(e) => setPlayerNick(e.target.value)} className="w-full bg-dark-900/50 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-brand-500 outline-none" placeholder="Nome_Sobrenome" />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">ID da Conta</label>
-                  <input type="number" required value={gameId} onChange={(e) => setGameId(e.target.value)} className="w-full bg-dark-900/50 border border-white/10 rounded-2xl p-5 text-white focus:border-brand-500 outline-none" placeholder="Ex: 123" />
+                <div className="space-y-1.5">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">ID da Conta</label>
+                  <input type="number" required value={gameId} onChange={(e) => setGameId(e.target.value)} className="w-full bg-dark-900/50 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-brand-500 outline-none" placeholder="Ex: 123" />
                 </div>
-                <div className="md:col-span-2 space-y-2">
-                  <label className="text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Discord para Contato</label>
-                  <input type="text" required placeholder="usuario#0000" className="w-full bg-dark-900/50 border border-white/10 rounded-2xl p-5 text-white focus:border-brand-500 outline-none" value={discordContact} onChange={(e) => setDiscordContact(e.target.value)} />
+                <div className="sm:col-span-2 space-y-1.5">
+                  <label className="text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Discord Tag</label>
+                  <input type="text" required placeholder="usuario#0000" className="w-full bg-dark-900/50 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-brand-500 outline-none" value={discordContact} onChange={(e) => setDiscordContact(e.target.value)} />
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest ml-1">Comprovante Bancário</label>
-                <div className="border-4 border-dashed border-white/5 hover:border-brand-500/50 rounded-[2rem] p-12 text-center bg-dark-900/50 transition-all group">
+              <div className="space-y-3">
+                <label className="block text-[9px] font-black text-gray-500 uppercase tracking-widest ml-1">Comprovante</label>
+                <div className="border-2 border-dashed border-white/10 hover:border-brand-500/50 rounded-xl p-6 text-center bg-dark-900/50 transition-all group">
                    <input type="file" id="proof" accept="image/*" onChange={handleImageUpload} className="hidden" />
                    <label htmlFor="proof" className="cursor-pointer flex flex-col items-center justify-center">
                       {proofImage ? (
                         <div className="relative">
-                          <img src={proofImage} alt="Preview" className="h-64 rounded-2xl shadow-2xl object-contain" />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-2xl transition-all">
-                            <span className="text-white font-black">TROCAR IMAGEM</span>
-                          </div>
+                          <img src={proofImage} alt="Preview" className="h-32 rounded-lg object-contain" />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center rounded-lg transition-all text-[10px] text-white font-bold">TROCAR</div>
                         </div>
                       ) : (
                         <div className="flex flex-col items-center">
-                          <div className="w-20 h-20 bg-dark-800 rounded-3xl flex items-center justify-center text-gray-600 mb-6 group-hover:text-brand-500 group-hover:scale-110 transition-all shadow-xl">
-                            <Upload size={36} />
-                          </div>
-                          <span className="text-gray-400 font-bold text-lg mb-2">Clique para anexar comprovante</span>
-                          <span className="text-xs text-gray-600 font-black uppercase tracking-widest">PNG, JPG (Máx 2MB)</span>
+                          <Upload size={24} className="text-gray-600 mb-2 group-hover:text-brand-500 transition-all" />
+                          <span className="text-gray-500 font-bold text-xs">Anexar Imagem</span>
                         </div>
                       )}
                    </label>
                 </div>
               </div>
 
-              <button type="submit" className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-6 rounded-[2rem] text-xl flex items-center justify-center gap-4 transition-all shadow-2xl shadow-green-600/20 active:scale-95">
-                <CheckCircle size={32} /> ENVIAR PARA APROVAÇÃO
+              <button type="submit" className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-xl text-sm flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95">
+                <CheckCircle size={20} /> FINALIZAR PEDIDO
               </button>
             </form>
           </div>
