@@ -2,10 +2,6 @@
 import { supabase } from './supabase';
 import { ShopItem, Rule, NewsPost, PlayerStats, PaymentRequest, ServerConfig, ChatMessage } from '../types';
 
-const STORAGE_KEYS = {
-  MY_ORDERS: 'capital_my_orders',
-};
-
 export const StorageService = {
   // --- NOTIFICAÇÕES EXTERNAS ---
   sendDiscordNotification: async (webhookUrl: string, payment: any) => {
@@ -14,15 +10,14 @@ export const StorageService = {
     const embed = {
       title: "🚀 NOVO PEDIDO RECEBIDO!",
       description: `Um novo pedido foi realizado no site e aguarda aprovação.`,
-      color: 5814783, // Azul Capital
+      color: 38511, // Azul Capital
       fields: [
         { name: "👤 Jogador", value: `**${payment.playerNick}** (ID: ${payment.playerId})`, inline: true },
         { name: "📦 Item", value: payment.itemName, inline: true },
         { name: "💰 Valor", value: `R$ ${payment.itemPrice.toFixed(2)}`, inline: true },
-        { name: "💬 Discord", value: payment.discordContact, inline: false },
-        { name: "🔗 Rastreamento", value: `[Clique aqui para ver o painel](https://${window.location.host}/#/admin)`, inline: false }
+        { name: "💬 Discord", value: payment.discordContact, inline: false }
       ],
-      footer: { text: "Capital City RP - Sistema de Vendas" },
+      footer: { text: "Capital City RP - Gestão de Vendas" },
       timestamp: new Date().toISOString()
     };
 
@@ -40,9 +35,13 @@ export const StorageService = {
   // --- SHOP ---
   getShopItems: async (): Promise<ShopItem[]> => {
     const { data, error } = await supabase.from('shop_items').select('*').order('created_at', { ascending: false });
-    if (error) console.error("Erro ao buscar itens da loja:", error);
+    if (error) return [];
     return (data || []).map((i: any) => ({
-      ...i,
+      id: i.id,
+      name: i.name,
+      description: i.description,
+      price: i.price,
+      category: i.category,
       imageUrl: i.image_url
     }));
   },
@@ -51,68 +50,82 @@ export const StorageService = {
     const { data, error } = await supabase.from('shop_items').select('*').eq('id', id).single();
     if (error || !data) return undefined;
     return {
-      ...data,
+      id: data.id,
+      name: data.name,
+      description: data.description,
+      price: data.price,
+      category: data.category,
       imageUrl: data.image_url
     };
   },
 
   addShopItem: async (item: Omit<ShopItem, 'id'>) => {
-    const { data, error } = await supabase.from('shop_items').insert([{
+    const { error } = await supabase.from('shop_items').insert([{
       name: item.name,
       description: item.description,
       price: item.price,
       category: item.category,
       image_url: item.imageUrl
-    }]).select().single();
+    }]);
     if(error) throw error;
-    return data;
   },
   
   updateShopItem: async (id: string, item: Partial<ShopItem>) => {
-    const { error } = await supabase.from('shop_items').update({
-      name: item.name,
-      description: item.description,
-      price: item.price,
-      category: item.category,
-      image_url: item.imageUrl
-    }).eq('id', id);
+    // Removemos o id e mapeamos para snake_case
+    const payload: any = {};
+    if (item.name !== undefined) payload.name = item.name;
+    if (item.description !== undefined) payload.description = item.description;
+    if (item.price !== undefined) payload.price = item.price;
+    if (item.category !== undefined) payload.category = item.category;
+    if (item.imageUrl !== undefined) payload.image_url = item.imageUrl;
+
+    const { error } = await supabase.from('shop_items').update(payload).eq('id', id);
     if(error) throw error;
   },
 
   deleteShopItem: async (id: string) => {
-    console.log("Iniciando exclusão do item:", id);
     const { error } = await supabase.from('shop_items').delete().eq('id', id);
-    if (error) {
-      console.error("Falha ao deletar item da loja no Supabase:", error);
-      throw new Error(error.message);
-    }
+    if (error) throw error;
   },
 
   // --- RULES ---
   getRules: async (): Promise<Rule[]> => {
     const { data, error } = await supabase.from('rules').select('*').order('created_at', { ascending: true });
-    if (error) console.error("Erro ao buscar regras:", error);
     return data || [];
   },
   addRule: async (rule: Omit<Rule, 'id'>) => {
-    const { error } = await supabase.from('rules').insert([rule]);
+    const { error } = await supabase.from('rules').insert([{
+      title: rule.title,
+      content: rule.content,
+      category: rule.category
+    }]);
     if(error) throw error;
   },
   updateRule: async (id: string, rule: Partial<Rule>) => {
-    const { error } = await supabase.from('rules').update(rule).eq('id', id);
+    const payload: any = {};
+    if (rule.title !== undefined) payload.title = rule.title;
+    if (rule.content !== undefined) payload.content = rule.content;
+    if (rule.category !== undefined) payload.category = rule.category;
+
+    const { error } = await supabase.from('rules').update(payload).eq('id', id);
     if(error) throw error;
   },
   deleteRule: async (id: string) => {
     const { error } = await supabase.from('rules').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    if (error) throw error;
   },
 
   // --- NEWS ---
   getNews: async (): Promise<NewsPost[]> => {
     const { data, error } = await supabase.from('news').select('*').order('created_at', { ascending: false });
-    if (error) console.error("Erro ao buscar notícias:", error);
+    if (error) return [];
     return (data || []).map((n: any) => ({
-      ...n,
+      id: n.id,
+      title: n.title,
+      summary: n.summary,
+      content: n.content,
+      author: n.author,
+      date: n.date,
       imageUrl: n.image_url
     }));
   },
@@ -128,26 +141,25 @@ export const StorageService = {
     if(error) throw error;
   },
   updateNews: async (id: string, news: Partial<NewsPost>) => {
-    const { error } = await supabase.from('news').update({
-      title: news.title,
-      summary: news.summary,
-      content: news.content,
-      image_url: news.imageUrl
-    }).eq('id', id);
+    const payload: any = {};
+    if (news.title !== undefined) payload.title = news.title;
+    if (news.summary !== undefined) payload.summary = news.summary;
+    if (news.content !== undefined) payload.content = news.content;
+    if (news.imageUrl !== undefined) payload.image_url = news.imageUrl;
+
+    const { error } = await supabase.from('news').update(payload).eq('id', id);
     if(error) throw error;
   },
   deleteNews: async (id: string) => {
     const { error } = await supabase.from('news').delete().eq('id', id);
-    if (error) throw new Error(error.message);
+    if (error) throw error;
   },
 
   // --- PAYMENTS ---
   getPayments: async (): Promise<PaymentRequest[]> => {
     const { data: payments, error } = await supabase.from('payments').select('*').order('created_at', { ascending: false });
-    if (error) console.error("Erro ao buscar pagamentos:", error);
-    if (!payments) return [];
-
-    return payments.map((p: any) => ({
+    if (error) return [];
+    return (payments || []).map((p: any) => ({
       id: p.id,
       itemId: p.item_id,
       itemName: p.item_name,
@@ -197,7 +209,6 @@ export const StorageService = {
       item_price: payment.itemPrice,
       player_nick: payment.playerNick,
       player_id: payment.playerId,
-      // Fix: Use correct property name from payment object (discordContact instead of discord_contact)
       discord_contact: payment.discordContact,
       proof_image_url: payment.proofImageUrl,
       status: 'PENDING'
@@ -212,23 +223,32 @@ export const StorageService = {
     if(error) throw error;
   },
 
-  // --- MY ORDERS ---
+  addOrderMessage: async (paymentId: string, sender: 'ADMIN' | 'PLAYER', content: string) => {
+    const { error } = await supabase.from('payment_messages').insert([{
+      payment_id: paymentId,
+      sender,
+      content,
+      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    }]);
+    if(error) throw error;
+  },
+
   saveMyOrderId: (id: string) => {
-    const stored = localStorage.getItem(STORAGE_KEYS.MY_ORDERS);
+    const stored = localStorage.getItem('capital_my_orders');
     let orders: string[] = stored ? JSON.parse(stored) : [];
     if (!orders.includes(id)) {
       orders = [id, ...orders];
-      localStorage.setItem(STORAGE_KEYS.MY_ORDERS, JSON.stringify(orders));
+      localStorage.setItem('capital_my_orders', JSON.stringify(orders));
     }
   },
 
   getMyOrders: async (): Promise<PaymentRequest[]> => {
-    const stored = localStorage.getItem(STORAGE_KEYS.MY_ORDERS);
+    const stored = localStorage.getItem('capital_my_orders');
     const ids: string[] = stored ? JSON.parse(stored) : [];
     if (ids.length === 0) return [];
 
     const { data, error } = await supabase.from('payments').select('*').in('id', ids).order('created_at', { ascending: false });
-    if (error) console.error("Erro ao buscar meus pedidos:", error);
+    if (error) return [];
     
     return (data || []).map((p: any) => ({
       id: p.id,
@@ -246,23 +266,14 @@ export const StorageService = {
     }));
   },
 
-  addOrderMessage: async (paymentId: string, sender: 'ADMIN' | 'PLAYER', content: string) => {
-    const { error } = await supabase.from('payment_messages').insert([{
-      payment_id: paymentId,
-      sender,
-      content,
-      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    }]);
-    if(error) throw error;
-  },
-
   // --- CONFIG ---
   getConfig: async (): Promise<ServerConfig> => {
     try {
       const { data, error } = await supabase.from('server_config').select('*').limit(1).single();
-      if (error || !data) throw new Error("No config found");
+      if (error || !data) throw new Error("No config");
       
       return {
+        id: data.id,
         pcDownloadUrl: data.pc_download_url || '',
         mobileDownloadUrl: data.mobile_download_url || '',
         discordUrl: data.discord_url || '',
@@ -308,10 +319,8 @@ export const StorageService = {
     }
   },
 
-  // --- RANKINGS ---
   getRankings: async (): Promise<PlayerStats[]> => {
      const { data, error } = await supabase.from('rankings').select('*').order('score', { ascending: false }).limit(10);
-     if (error) console.error("Erro ao buscar rankings:", error);
      return data || [];
   }
 };

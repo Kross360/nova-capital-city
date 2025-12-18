@@ -1,208 +1,169 @@
+
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Download, Star, ShieldCheck, Zap, Gamepad2, Monitor, Smartphone, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Download, Monitor, Smartphone, X, Star, ShieldCheck, Zap, MessageCircle, Loader2 } from 'lucide-react';
 import { StorageService } from '../services/storage';
 import { NewsPost, ServerConfig } from '../types';
+import { useToast } from '../components/ToastSystem';
 
 export const Home: React.FC = () => {
   const [news, setNews] = useState<NewsPost[]>([]);
   const [showPlatformModal, setShowPlatformModal] = useState(false);
-  const [config, setConfig] = useState<ServerConfig>({} as ServerConfig);
+  const [config, setConfig] = useState<ServerConfig | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const loadData = async () => {
-       const allNews = await StorageService.getNews();
+       const [allNews, cfg] = await Promise.all([
+         StorageService.getNews(),
+         StorageService.getConfig()
+       ]);
        setNews(allNews.slice(0, 3));
-       const cfg = await StorageService.getConfig();
        setConfig(cfg);
     };
     loadData();
   }, []);
 
-  const handlePlatformSelect = (platform: 'pc' | 'mobile') => {
-    setShowPlatformModal(false);
-    navigate(`/start?platform=${platform}`);
+  const openDiscord = () => {
+    if (config?.discordUrl) {
+      window.open(config.discordUrl, '_blank');
+    }
   };
 
-  return (
-    <div className="animate-fade-in relative">
-      {/* Hero Section */}
-      <section className="relative h-[600px] flex items-center justify-center overflow-hidden">
-        {/* Background Image with Overlay */}
-        <div 
-          className="absolute inset-0 z-0 bg-cover bg-center transition-transform duration-[20s] hover:scale-105"
-          style={{ 
-            backgroundImage: `url("${config.homeBackgroundUrl || 'https://picsum.photos/1920/1080?grayscale&blur=2'}")`,
-          }}
-        ></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/80 to-transparent z-10"></div>
-        <div className="absolute inset-0 bg-brand-900/30 mix-blend-overlay z-10"></div>
+  if (!config) {
+    return (
+      <div className="min-h-screen bg-dark-900 flex items-center justify-center">
+        <Loader2 className="animate-spin text-brand-500" size={48} />
+      </div>
+    );
+  }
 
-        {/* Content */}
-        <div className="relative z-20 text-center px-4 max-w-4xl mx-auto mt-16">
-          <div className="inline-block mb-4 px-4 py-1 rounded-full bg-brand-500/20 border border-brand-500/50 text-brand-300 text-sm font-semibold tracking-wide uppercase animate-bounce-slow">
-            Bem-vindo ao futuro do RP
+  return (
+    <div className="animate-fade-in selection:bg-brand-600 selection:text-white">
+      {/* Hero Section */}
+      <section className="relative h-screen min-h-[900px] flex items-center justify-center overflow-hidden">
+        {/* Cinematic Background */}
+        <div 
+          className="absolute inset-0 z-0 bg-cover bg-center scale-110 animate-pulse-slow"
+          style={{ backgroundImage: `url("${config.homeBackgroundUrl || 'https://images.unsplash.com/photo-1514565131-fce0801e5785?q=80&w=2000'}")` }}
+        ></div>
+        <div className="absolute inset-0 bg-gradient-to-t from-dark-900 via-dark-900/80 to-dark-900/20 z-10"></div>
+        <div className="absolute inset-0 bg-brand-600/5 mix-blend-overlay z-10"></div>
+
+        <div className="relative z-20 text-center px-6 max-w-7xl mx-auto">
+          <div className="inline-flex items-center gap-3 mb-10 px-8 py-3 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-400 text-[11px] font-black uppercase tracking-[0.3em] backdrop-blur-xl animate-fade-in-down shadow-2xl">
+            <span className="w-2.5 h-2.5 rounded-full bg-brand-500 shadow-[0_0_20px_rgba(59,130,246,1)] animate-ping"></span>
+            Acesso via Launcher Oficial
           </div>
-          <h1 className="text-5xl md:text-7xl font-extrabold text-white mb-6 tracking-tight drop-shadow-2xl">
-            CAPITAL <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-600">CITY</span>
+          
+          <h1 className="text-8xl md:text-[11rem] font-black text-white mb-10 tracking-tighter leading-[0.8] drop-shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
+            CAPITAL <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-300 via-brand-500 to-brand-700 animate-gradient-x">CITY</span>
           </h1>
-          <p className="text-xl md:text-2xl text-gray-200 mb-10 max-w-2xl mx-auto leading-relaxed drop-shadow-md">
-            Sua nova vida começa aqui. Uma cidade viva, economia balanceada e infinitas possibilidades.
+          
+          <p className="text-xl md:text-3xl text-gray-300 mb-16 max-w-4xl mx-auto leading-tight font-medium opacity-80">
+            A metrópole mais imersiva do SA-MP nacional. Sistemas exclusivos, economia viva e uma história esperando por você.
           </p>
           
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
             <button 
               onClick={() => setShowPlatformModal(true)}
-              className="w-full sm:w-auto px-8 py-4 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-lg transition-all transform hover:-translate-y-1 hover:shadow-lg hover:shadow-brand-600/40 flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-16 py-7 bg-brand-600 hover:bg-brand-500 text-white font-black rounded-[2.5rem] transition-all transform hover:-translate-y-2 shadow-[0_20px_50px_rgba(37,99,235,0.4)] flex items-center justify-center gap-4 text-2xl group active:scale-95"
             >
-              <Download size={20} />
-              JOGAR AGORA
+              <Download size={32} className="group-hover:animate-bounce" /> JOGAR AGORA
             </button>
-          </div>
-
-          {/* Server Info Widget */}
-          <div className="mt-12 inline-flex flex-wrap justify-center items-center gap-4 sm:gap-8 bg-dark-800/80 backdrop-blur-sm border border-white/10 px-8 py-4 rounded-2xl shadow-xl">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-              </span>
-              <span className="text-green-400 font-bold uppercase text-sm tracking-wider">Servidor Online</span>
-            </div>
-
-            <div className="hidden sm:block w-px h-6 bg-white/10"></div>
-
-            <div className="flex items-center gap-2 text-gray-300">
-              <Gamepad2 size={18} className="text-brand-400" />
-              <span className="text-sm font-medium">Versão 0.3.7 (PC/Mobile)</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Grid */}
-      <section className="py-20 bg-dark-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Por que escolher a <span className="text-brand-500">Capital City</span>?</h2>
-            <p className="text-gray-400 max-w-2xl mx-auto">Desenvolvemos sistemas exclusivos para proporcionar a melhor imersão possível.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="bg-dark-800 p-8 rounded-2xl border border-white/5 hover:border-brand-500/50 transition-all group">
-              <div className="w-14 h-14 bg-brand-900/50 rounded-xl flex items-center justify-center text-brand-400 mb-6 group-hover:scale-110 transition-transform">
-                <Star size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-3">Sistemas Exclusivos</h3>
-              <p className="text-gray-400">Roubos complexos, sistema de empresas, casas mobiliáveis e muito mais desenvolvido do zero.</p>
-            </div>
-            <div className="bg-dark-800 p-8 rounded-2xl border border-white/5 hover:border-brand-500/50 transition-all group">
-              <div className="w-14 h-14 bg-brand-900/50 rounded-xl flex items-center justify-center text-brand-400 mb-6 group-hover:scale-110 transition-transform">
-                <ShieldCheck size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-3">Roleplay Sério</h3>
-              <p className="text-gray-400">Administração ativa e regras rígidas para garantir um ambiente saudável e divertido para todos.</p>
-            </div>
-            <div className="bg-dark-800 p-8 rounded-2xl border border-white/5 hover:border-brand-500/50 transition-all group">
-              <div className="w-14 h-14 bg-brand-900/50 rounded-xl flex items-center justify-center text-brand-400 mb-6 group-hover:scale-110 transition-transform">
-                <Zap size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-white mb-3">Host BR Otimizado</h3>
-              <p className="text-gray-400">Latência baixíssima, proteção DDoS avançada e uptime de 99.9% para você jogar sem preocupações.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Latest News */}
-      <section className="py-20 bg-dark-800 border-t border-white/5">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-end mb-12">
-            <div>
-              <h2 className="text-3xl font-bold text-white mb-2">Últimas Notícias</h2>
-              <p className="text-gray-400">Fique por dentro das atualizações.</p>
-            </div>
-            <Link to="/news" className="text-brand-400 hover:text-brand-300 font-medium flex items-center gap-1 hover:gap-2 transition-all">
-              Ver todas as postagens &rarr;
-            </Link>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {news.map((post) => (
-              <article key={post.id} className="bg-dark-900 rounded-xl overflow-hidden border border-white/5 hover:shadow-xl hover:shadow-brand-900/20 transition-all group h-full flex flex-col">
-                <div className="h-48 overflow-hidden relative">
-                   <div className="absolute inset-0 bg-brand-500/20 opacity-0 group-hover:opacity-100 transition-opacity z-10"></div>
-                   <img 
-                    src={post.imageUrl || config.newsDefaultImageUrl || 'https://picsum.photos/800/400'} 
-                    alt={post.title} 
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                  />
-                </div>
-                <div className="p-6 flex flex-col flex-grow">
-                  <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
-                    <span className="bg-dark-800 px-2 py-1 rounded border border-white/5">{post.date}</span>
-                    <span>por <span className="text-brand-400">{post.author}</span></span>
-                  </div>
-                  <h3 className="text-xl font-bold text-white mb-2 group-hover:text-brand-400 transition-colors">{post.title}</h3>
-                  <p className="text-gray-400 text-sm line-clamp-3 mb-4 flex-grow">{post.summary}</p>
-                  <Link to="/news" className="text-brand-400 text-sm font-semibold hover:text-brand-300 mt-auto">Ler na íntegra</Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Platform Selection Modal */}
-      {showPlatformModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="bg-dark-800 rounded-2xl border border-white/10 w-full max-w-2xl relative shadow-2xl overflow-hidden">
             <button 
-              onClick={() => setShowPlatformModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors z-10 bg-dark-900/50 rounded-full p-1"
+              onClick={openDiscord}
+              className="w-full sm:w-auto px-12 py-7 bg-white/5 hover:bg-white/10 backdrop-blur-3xl text-white font-black rounded-[2.5rem] transition-all flex items-center justify-center gap-4 border border-white/10 group shadow-2xl active:scale-95"
             >
-              <X size={24} />
+              <MessageCircle size={32} className="text-brand-400 group-hover:scale-110 transition-transform" />
+              <span className="tracking-tight text-xl">ENTRAR NO DISCORD</span>
             </button>
-            
-            <div className="p-8 text-center">
-              <h2 className="text-3xl font-bold text-white mb-2">Escolha sua Plataforma</h2>
-              <p className="text-gray-400 mb-8">Como você deseja jogar em Capital City?</p>
-              
-              <div className="grid md:grid-cols-2 gap-6">
-                {/* PC Option */}
-                <button 
-                  onClick={() => handlePlatformSelect('pc')}
-                  className="group relative bg-dark-900 p-6 rounded-xl border border-white/5 hover:border-brand-500 hover:bg-dark-900/80 transition-all text-left flex flex-col items-center justify-center gap-4 py-12"
-                >
-                  <div className="w-20 h-20 bg-brand-600/10 rounded-full flex items-center justify-center group-hover:bg-brand-600 group-hover:text-white transition-all text-brand-500">
-                    <Monitor size={40} />
-                  </div>
-                  <div className="text-center">
-                    <h3 className="text-2xl font-bold text-white mb-1">Computador</h3>
-                    <p className="text-sm text-gray-500 group-hover:text-gray-300">Cliente SA-MP PC</p>
-                  </div>
-                </button>
+          </div>
 
-                {/* Mobile Option */}
-                <button 
-                  onClick={() => handlePlatformSelect('mobile')}
-                  className="group relative bg-dark-900 p-6 rounded-xl border border-white/5 hover:border-brand-500 hover:bg-dark-900/80 transition-all text-left flex flex-col items-center justify-center gap-4 py-12"
-                >
-                  <div className="w-20 h-20 bg-brand-600/10 rounded-full flex items-center justify-center group-hover:bg-brand-600 group-hover:text-white transition-all text-brand-500">
-                    <Smartphone size={40} />
-                  </div>
-                  <div className="text-center">
-                    <h3 className="text-2xl font-bold text-white mb-1">Android</h3>
-                    <p className="text-sm text-gray-500 group-hover:text-gray-300">APK Mobile / Launcher</p>
-                  </div>
-                </button>
-              </div>
-            </div>
-            
-            <div className="bg-dark-900 p-4 text-center text-sm text-gray-500 border-t border-white/5">
-              Ambas as plataformas jogam juntas no mesmo servidor!
-            </div>
+          <div className="mt-24 grid grid-cols-2 md:grid-cols-4 gap-8 opacity-50">
+             <div className="flex flex-col items-center">
+                <span className="text-4xl font-black text-white">50K+</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Contas</span>
+             </div>
+             <div className="flex flex-col items-center">
+                <span className="text-4xl font-black text-white">99%</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Uptime</span>
+             </div>
+             <div className="flex flex-col items-center">
+                <span className="text-4xl font-black text-white">4.9</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Avaliação</span>
+             </div>
+             <div className="flex flex-col items-center">
+                <span className="text-4xl font-black text-white">24/7</span>
+                <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Suporte</span>
+             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Benefits Section */}
+      <section className="py-48 bg-dark-900 relative">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-px bg-gradient-to-r from-transparent via-white/5 to-transparent"></div>
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-24">
+             <h2 className="text-5xl font-black text-white mb-6 tracking-tighter">A CIDADE QUE NUNCA DORME</h2>
+             <p className="text-gray-500 text-xl font-medium max-w-2xl mx-auto">Experiência refinada em cada pixel do servidor.</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-12">
+             <div className="bg-dark-800/20 p-16 rounded-[4rem] border border-white/5 hover:border-brand-500/30 transition-all group hover:shadow-[0_0_80px_rgba(37,99,235,0.08)]">
+                <div className="w-24 h-24 bg-brand-600/10 rounded-[2rem] flex items-center justify-center text-brand-500 mb-10 group-hover:bg-brand-600 group-hover:text-white transition-all shadow-xl group-hover:rotate-6">
+                  <Zap size={48} />
+                </div>
+                <h3 className="text-4xl font-black text-white mb-8 tracking-tighter">EXTREMA PERFORMANCE</h3>
+                <p className="text-gray-400 text-xl leading-relaxed font-medium">Otimização nativa para PC e Mobile. Jogabilidade fluida sem quedas de FPS.</p>
+             </div>
+             <div className="bg-dark-800/20 p-16 rounded-[4rem] border border-white/5 hover:border-brand-500/30 transition-all group hover:shadow-[0_0_80_px_rgba(37,99,235,0.08)]">
+                <div className="w-24 h-24 bg-brand-600/10 rounded-[2rem] flex items-center justify-center text-brand-500 mb-10 group-hover:bg-brand-600 group-hover:text-white transition-all shadow-xl group-hover:rotate-6">
+                  <ShieldCheck size={48} />
+                </div>
+                <h3 className="text-4xl font-black text-white mb-8 tracking-tighter">REGRAS SÉRIAS</h3>
+                <p className="text-gray-400 text-xl leading-relaxed font-medium">Staff treinada para garantir um ambiente saudável. Roleplay levado a sério.</p>
+             </div>
+             <div className="bg-dark-800/20 p-16 rounded-[4rem] border border-white/5 hover:border-brand-500/30 transition-all group hover:shadow-[0_0_80px_rgba(37,99,235,0.08)]">
+                <div className="w-24 h-24 bg-brand-600/10 rounded-[2rem] flex items-center justify-center text-brand-500 mb-10 group-hover:bg-brand-600 group-hover:text-white transition-all shadow-xl group-hover:rotate-6">
+                  <Star size={48} />
+                </div>
+                <h3 className="text-4xl font-black text-white mb-8 tracking-tighter">SISTEMAS ÚNICOS</h3>
+                <p className="text-gray-400 text-xl leading-relaxed font-medium">Economia balanceada, empregos variados e sistemas que você só encontra aqui.</p>
+             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Modal Plataforma */}
+      {showPlatformModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/95 backdrop-blur-3xl animate-fade-in">
+          <div className="bg-dark-800 rounded-[4rem] border border-white/10 w-full max-w-5xl relative shadow-[0_50px_100px_rgba(0,0,0,0.8)] overflow-hidden">
+             <button onClick={() => setShowPlatformModal(false)} className="absolute top-12 right-12 text-gray-500 hover:text-white transition-all bg-dark-900 rounded-full p-5 hover:rotate-90"><X size={36}/></button>
+             <div className="p-24 text-center">
+               <h2 className="text-7xl font-black text-white mb-8 tracking-tighter uppercase">Escolha sua Plataforma</h2>
+               <p className="text-gray-400 mb-20 text-2xl font-medium opacity-60">Prepare seu passaporte para a melhor experiência da sua vida.</p>
+               <div className="grid md:grid-cols-2 gap-16">
+                  <button onClick={() => navigate('/start?platform=pc')} className="group bg-dark-900/50 p-20 rounded-[3.5rem] border border-white/5 hover:border-brand-500 transition-all flex flex-col items-center gap-12 hover:bg-brand-500/10">
+                    <div className="w-32 h-32 bg-brand-600/10 rounded-[2rem] flex items-center justify-center text-brand-500 group-hover:bg-brand-600 group-hover:text-white transition-all shadow-2xl group-hover:scale-110">
+                      <Monitor size={72}/>
+                    </div>
+                    <div>
+                      <h3 className="text-5xl font-black text-white mb-4 tracking-tighter">PC / DESKTOP</h3>
+                      <p className="text-[10px] text-gray-600 uppercase tracking-[0.4em] font-black opacity-60">SAMP Client Otimizado</p>
+                    </div>
+                  </button>
+                  <button onClick={() => navigate('/start?platform=mobile')} className="group bg-dark-900/50 p-20 rounded-[3.5rem] border border-white/5 hover:border-brand-500 transition-all flex flex-col items-center gap-12 hover:bg-brand-500/10">
+                    <div className="w-32 h-32 bg-brand-600/10 rounded-[2rem] flex items-center justify-center text-brand-500 group-hover:bg-brand-600 group-hover:text-white transition-all shadow-2xl group-hover:scale-110">
+                      <Smartphone size={72}/>
+                    </div>
+                    <div>
+                      <h3 className="text-5xl font-black text-white mb-4 tracking-tighter">MOBILE / APK</h3>
+                      <p className="text-[10px] text-gray-600 uppercase tracking-[0.4em] font-black opacity-60">Launcher Android Exclusivo</p>
+                    </div>
+                  </button>
+               </div>
+             </div>
           </div>
         </div>
       )}

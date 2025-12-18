@@ -1,7 +1,14 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { StorageService } from '../services/storage';
-import { ShopItem, Rule, NewsPost, Category, PaymentRequest, ServerConfig } from '../types';
-import { Trash2, Plus, LogOut, LogIn, LayoutGrid, ScrollText, Newspaper, CreditCard, CheckCircle, XCircle, Eye, RefreshCw, Settings, Save, Smartphone, Monitor, MessageCircle, ImageIcon, Send, Shield, User, Loader2, Coins, Pencil, X, BellRing, Lock, Download, ExternalLink } from 'lucide-react';
+import { ShopItem, Rule, NewsPost, Category, PaymentRequest, ServerConfig, ChatMessage } from '../types';
+import { 
+  Trash2, Plus, LogOut, LogIn, LayoutGrid, ScrollText, Newspaper, 
+  CreditCard, CheckCircle, XCircle, Eye, RefreshCw, Settings, Save, 
+  Smartphone, Monitor, MessageCircle, ImageIcon, Send, Shield, 
+  User, Loader2, Coins, Pencil, X, Bell, Lock, Download, 
+  ExternalLink, DollarSign, Clock, Hash, FileText
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '../components/ToastSystem';
 
@@ -11,117 +18,85 @@ export const Admin: React.FC = () => {
   });
   
   const [password, setPassword] = useState('');
-  const [activeTab, setActiveTab] = useState<'SHOP' | 'RULES' | 'NEWS' | 'PAYMENTS' | 'CONFIG' | 'IMAGES'>('PAYMENTS');
-  const [uploading, setUploading] = useState(false);
-  const [testingWebhook, setTestingWebhook] = useState(false);
-  const [savingConfig, setSavingConfig] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'PAYMENTS' | 'SHOP' | 'RULES' | 'NEWS' | 'CONFIG'>('PAYMENTS');
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   
+  // Data States
   const [shopItems, setShopItems] = useState<ShopItem[]>([]);
   const [rules, setRules] = useState<Rule[]>([]);
   const [news, setNews] = useState<NewsPost[]>([]);
   const [payments, setPayments] = useState<PaymentRequest[]>([]);
-  const [config, setConfig] = useState<ServerConfig>({
-    pcDownloadUrl: '',
-    mobileDownloadUrl: '',
-    discordUrl: '',
-    pixKey: '',
-    pixQrCodeUrl: '',
-    homeBackgroundUrl: '',
-    aboutImageUrl: '',
-    newsDefaultImageUrl: '',
-    capiCoinPrice: 1.0,
-    discordWebhookUrl: ''
-  });
+  const [config, setConfig] = useState<ServerConfig>({} as ServerConfig);
 
-  const [editingShopId, setEditingShopId] = useState<string | null>(null);
-  const [newItemName, setNewItemName] = useState('');
-  const [newItemDesc, setNewItemDesc] = useState('');
-  const [newItemPrice, setNewItemPrice] = useState('');
-  const [newItemCat, setNewItemCat] = useState<Category>('VIP');
-  const [newItemImageUrl, setNewItemImageUrl] = useState('');
-
-  const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
-  const [newRuleTitle, setNewRuleTitle] = useState('');
-  const [newRuleContent, setNewRuleContent] = useState('');
-  const [newRuleCat, setNewRuleCat] = useState('GENERAL');
-
-  const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
-  const [newNewsTitle, setNewNewsTitle] = useState('');
-  const [newNewsSummary, setNewNewsSummary] = useState('');
-  const [newNewsContent, setNewNewsContent] = useState('');
-  const [newNewsImageUrl, setNewNewsImageUrl] = useState('');
-
+  // Modals & Chat
+  const [showItemModal, setShowItemModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<Partial<ShopItem> | null>(null);
+  const [showRuleModal, setShowRuleModal] = useState(false);
+  const [editingRule, setEditingRule] = useState<Partial<Rule> | null>(null);
+  const [showNewsModal, setShowNewsModal] = useState(false);
+  const [editingNews, setEditingNews] = useState<Partial<NewsPost> | null>(null);
+  
   const [viewingProof, setViewingProof] = useState<string | null>(null);
-  const [chatOrder, setChatOrder] = useState<PaymentRequest | null>(null);
-  const [chatMessageInput, setChatMessageInput] = useState('');
+  const [activeChatOrder, setActiveChatOrder] = useState<PaymentRequest | null>(null);
+  const [chatMessage, setChatMessage] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const navigate = useNavigate();
   const { addToast } = useToast();
 
-  const refreshAll = async () => {
+  const refreshData = async () => {
+    setLoading(true);
     try {
-      const sItems = await StorageService.getShopItems();
+      const [sItems, sRules, sNews, sPayments, sConfig] = await Promise.all([
+        StorageService.getShopItems(),
+        StorageService.getRules(),
+        StorageService.getNews(),
+        StorageService.getPayments(),
+        StorageService.getConfig()
+      ]);
       setShopItems(sItems);
-      const sRules = await StorageService.getRules();
       setRules(sRules);
-      const sNews = await StorageService.getNews();
       setNews(sNews);
-      const sPayments = await StorageService.getPayments();
       setPayments(sPayments);
-      const sConfig = await StorageService.getConfig();
       setConfig(sConfig);
+      
+      if (activeChatOrder) {
+        const updatedChat = sPayments.find(p => p.id === activeChatOrder.id);
+        if (updatedChat) {
+          const detailed = await StorageService.getPaymentById(updatedChat.id);
+          setActiveChatOrder(detailed);
+        }
+      }
     } catch (err) {
-      console.error("Erro ao atualizar dados:", err);
+      addToast('Erro ao sincronizar dados.', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (isAuthenticated) {
-      refreshAll();
-    }
-  }, [isAuthenticated, activeTab]);
-
-  useEffect(() => {
+    if (isAuthenticated) refreshData();
+    
     let interval: number;
-    if (isAuthenticated) {
-      interval = window.setInterval(async () => {
-        if (activeTab === 'PAYMENTS') {
-          const freshPayments = await StorageService.getPayments();
-          setPayments(prev => {
-            if (JSON.stringify(prev) !== JSON.stringify(freshPayments)) return freshPayments;
-            return prev;
-          });
-          if (chatOrder) {
-            const updatedOrder = await StorageService.getPaymentById(chatOrder.id);
-            if (updatedOrder) {
-               setChatOrder(prev => {
-                  if (JSON.stringify(prev) !== JSON.stringify(updatedOrder)) return updatedOrder;
-                  return prev;
-               });
-            }
-          }
-        }
-      }, 5000);
+    if (isAuthenticated && activeChatOrder) {
+      interval = window.setInterval(refreshData, 5000);
     }
     return () => clearInterval(interval);
-  }, [isAuthenticated, activeTab, chatOrder?.id]);
+  }, [isAuthenticated, activeChatOrder?.id]);
 
   useEffect(() => {
-    if (chatOrder?.messages?.length) {
-       chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [chatOrder?.messages?.length]);
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeChatOrder?.messages]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (password === 'CAPITAL2025') {
       setIsAuthenticated(true);
       sessionStorage.setItem('capital_admin_auth', 'true');
-      addToast('Acesso autorizado. Bem-vindo, Administrador.', 'success');
+      addToast('Acesso autorizado.', 'success');
     } else {
-      addToast('Senha mestra inválida.', 'error');
+      addToast('Senha incorreta.', 'error');
     }
   };
 
@@ -129,702 +104,481 @@ export const Admin: React.FC = () => {
     setIsAuthenticated(false);
     sessionStorage.removeItem('capital_admin_auth');
     navigate('/');
-    addToast('Sessão encerrada.', 'info');
   };
 
-  const handleTestWebhook = async () => {
-    if (!config.discordWebhookUrl) {
-      return addToast("Configure o Webhook primeiro.", "error");
-    }
-    setTestingWebhook(true);
+  // --- ACTIONS: SHOP ---
+  const handleSaveItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingItem) return;
     try {
-      await StorageService.sendDiscordNotification(config.discordWebhookUrl, {
-        playerNick: "Teste_Admin",
-        playerId: 0,
-        itemName: "Teste de Notificação",
-        itemPrice: 0,
-        discordContact: "Admin#0000"
-      });
-      addToast("Teste enviado com sucesso!", "success");
-    } catch (e) {
-      addToast("Erro no teste de Webhook.", "error");
-    } finally {
-      setTestingWebhook(false);
+      if (editingItem.id) {
+        await StorageService.updateShopItem(editingItem.id, editingItem);
+        addToast('Item atualizado com sucesso.', 'success');
+      } else {
+        await StorageService.addShopItem(editingItem as any);
+        addToast('Item adicionado à loja.', 'success');
+      }
+      setShowItemModal(false);
+      refreshData();
+    } catch (e) { 
+      console.error(e);
+      addToast('Erro ao salvar item.', 'error'); 
     }
   };
 
-  const handleTestLink = (url: string) => {
-    if (!url) return addToast("A URL está vazia.", "error");
-    window.open(url, '_blank');
-  };
-
-  const handleDeleteShopItem = async (id: string) => {
-    if (!id) return;
-    if (!window.confirm("ATENÇÃO: Deseja realmente excluir este item?")) return;
-    
-    setDeletingId(id);
+  const handleDeleteItem = async (id: string) => {
+    if (!confirm('Excluir este item da loja permanentemente?')) return;
     try {
       await StorageService.deleteShopItem(id);
-      setShopItems(prev => prev.filter(item => item.id !== id));
-      addToast("Item removido!", "success");
-    } catch (err: any) {
-      addToast("Erro ao excluir. Verifique o banco.", "error");
-    } finally {
-      setDeletingId(null);
+      addToast('Item removido.', 'success');
+      refreshData();
+    } catch (e) { addToast('Erro ao excluir.', 'error'); }
+  };
+
+  // --- ACTIONS: RULES ---
+  const handleSaveRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingRule) return;
+    try {
+      if (editingRule.id) {
+        await StorageService.updateRule(editingRule.id, editingRule);
+        addToast('Artigo atualizado.', 'success');
+      } else {
+        await StorageService.addRule(editingRule as any);
+        addToast('Regra adicionada à Constituição.', 'success');
+      }
+      setShowRuleModal(false);
+      refreshData();
+    } catch (e) { 
+      console.error(e);
+      addToast('Erro ao salvar regra.', 'error'); 
     }
   };
 
   const handleDeleteRule = async (id: string) => {
-    if (!id) return;
-    if (!window.confirm("Excluir regra?")) return;
-    setDeletingId(id);
+    if (!confirm('Deseja excluir este artigo da Constituição?')) return;
     try {
       await StorageService.deleteRule(id);
-      setRules(prev => prev.filter(r => r.id !== id));
-      addToast("Regra removida.", "success");
-    } catch (err: any) {
-      addToast("Erro ao excluir regra.", "error");
-    } finally {
-      setDeletingId(null);
+      addToast('Regra removida.', 'success');
+      refreshData();
+    } catch (e) { addToast('Erro ao excluir regra.', 'error'); }
+  };
+
+  // --- ACTIONS: NEWS ---
+  const handleSaveNews = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingNews) return;
+    try {
+      if (editingNews.id) {
+        await StorageService.updateNews(editingNews.id, editingNews);
+        addToast('Notícia atualizada.', 'success');
+      } else {
+        const payload = {
+          ...editingNews,
+          author: 'Administração',
+          date: new Date().toLocaleDateString('pt-BR')
+        };
+        await StorageService.addNews(payload as any);
+        addToast('Notícia publicada com sucesso!', 'success');
+      }
+      setShowNewsModal(false);
+      refreshData();
+    } catch (e) { 
+      console.error(e);
+      addToast('Erro ao salvar notícia.', 'error'); 
     }
   };
 
   const handleDeleteNews = async (id: string) => {
-    if (!id) return;
-    if (!window.confirm("Excluir notícia?")) return;
-    setDeletingId(id);
+    if (!confirm('Deseja remover esta notícia do site?')) return;
     try {
       await StorageService.deleteNews(id);
-      setNews(prev => prev.filter(n => n.id !== id));
-      addToast("Notícia removida.", "success");
-    } catch (err: any) {
-      addToast("Erro ao excluir notícia.", "error");
-    } finally {
-      setDeletingId(null);
-    }
+      addToast('Notícia excluída.', 'success');
+      refreshData();
+    } catch (e) { addToast('Erro ao excluir notícia.', 'error'); }
   };
 
-  const handleSaveShopItem = async () => {
-    if (!newItemName || !newItemPrice) return addToast("Preencha nome e preço.", 'error');
-    setUploading(true);
+  // --- ACTIONS: CONFIG & PAYMENTS (MANTIDOS) ---
+  const handleSaveConfig = async () => {
+    setSaving(true);
     try {
-      const itemData = {
-        name: newItemName,
-        description: newItemDesc,
-        price: parseFloat(newItemPrice),
-        category: newItemCat,
-        imageUrl: newItemImageUrl || `https://picsum.photos/400/300?random=${Date.now()}`
-      };
-      if (editingShopId) {
-        await StorageService.updateShopItem(editingShopId, itemData);
-        addToast('Alterações salvas!', 'success');
-      } else {
-        await StorageService.addShopItem(itemData);
-        addToast('Novo item adicionado!', 'success');
-      }
-      resetShopForm();
-      await refreshAll();
-    } catch (e: any) {
-      addToast('Erro ao salvar item.', 'error');
-    } finally {
-      setUploading(false);
-    }
+      await StorageService.saveConfig(config);
+      addToast('Configurações atualizadas!', 'success');
+    } catch (e) { addToast('Erro ao salvar.', 'error'); }
+    finally { setSaving(false); }
   };
 
-  const startEditShop = (item: ShopItem) => {
-    setNewItemName(item.name);
-    setNewItemDesc(item.description);
-    setNewItemPrice(item.price.toString());
-    setNewItemCat(item.category);
-    setNewItemImageUrl(item.imageUrl);
-    setEditingShopId(item.id);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const resetShopForm = () => {
-    setNewItemName(''); setNewItemDesc(''); setNewItemPrice(''); setNewItemImageUrl('');
-    setNewItemCat('VIP');
-    setEditingShopId(null);
-  };
-
-  const handleSaveRule = async () => {
-    if(!newRuleTitle) return addToast("Defina um título.", 'error');
+  const handleSendChatMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatMessage.trim() || !activeChatOrder) return;
     try {
-      const ruleData = { title: newRuleTitle, content: newRuleContent, category: newRuleCat as any };
-      if (editingRuleId) {
-        await StorageService.updateRule(editingRuleId, ruleData);
-        addToast('Regra atualizada!', 'success');
-      } else {
-        await StorageService.addRule(ruleData);
-        addToast('Regra publicada!', 'success');
-      }
-      resetRuleForm();
-      await refreshAll();
-    } catch (err: any) {
-      addToast("Erro ao salvar regra.", "error");
-    }
-  };
-
-  const startEditRule = (rule: Rule) => {
-    setNewRuleTitle(rule.title);
-    setNewRuleContent(rule.content);
-    setNewRuleCat(rule.category);
-    setEditingRuleId(rule.id);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const resetRuleForm = () => {
-    setNewRuleTitle(''); setNewRuleContent(''); setNewRuleCat('GENERAL');
-    setEditingRuleId(null);
-  };
-
-  const handleSaveNews = async () => {
-    if(!newNewsTitle || !newNewsSummary) return addToast("Preencha título e resumo.", 'error');
-    setUploading(true);
-    try {
-      const newsData = {
-        title: newNewsTitle,
-        summary: newNewsSummary,
-        content: newNewsContent,
-        author: 'Admin',
-        date: new Date().toLocaleDateString('pt-BR'),
-        imageUrl: newNewsImageUrl || `https://picsum.photos/800/400?random=${Date.now()}`
-      };
-      if (editingNewsId) {
-        await StorageService.updateNews(editingNewsId, newsData);
-        addToast('Notícia editada!', 'success');
-      } else {
-        await StorageService.addNews(newsData);
-        addToast('Notícia publicada!', 'success');
-      }
-      resetNewsForm();
-      await refreshAll();
-    } catch (e: any) {
-       addToast('Erro ao publicar notícia.', 'error');
-    } finally {
-       setUploading(false);
-    }
-  };
-
-  const startEditNews = (post: NewsPost) => {
-    setNewNewsTitle(post.title);
-    setNewNewsSummary(post.summary);
-    setNewNewsContent(post.content);
-    setNewNewsImageUrl(post.imageUrl || '');
-    setEditingNewsId(post.id);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const resetNewsForm = () => {
-    setNewNewsTitle(''); setNewNewsSummary(''); setNewNewsContent(''); setNewNewsImageUrl('');
-    setEditingNewsId(null);
+      await StorageService.addOrderMessage(activeChatOrder.id, 'ADMIN', chatMessage);
+      setChatMessage('');
+      refreshData();
+    } catch (e) { addToast('Erro ao enviar mensagem.', 'error'); }
   };
 
   const updatePaymentStatus = async (id: string, status: 'APPROVED' | 'REJECTED') => {
-    const note = prompt(status === 'APPROVED' ? "Mensagem opcional (Será enviada ao jogador):" : "Motivo da recusa (Será visível ao jogador):");
+    const note = prompt(status === 'APPROVED' ? 'Instruções de ativação:' : 'Motivo da recusa:');
     try {
-      await StorageService.updatePaymentStatus(id, status, note || undefined);
-      addToast(`Pedido marcado como ${status}`, 'success');
-      await refreshAll();
-    } catch (err: any) {
-      addToast("Erro ao processar status.", "error");
-    }
-  };
-
-  const handleSendAdminMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatMessageInput.trim() || !chatOrder) return;
-    try {
-      await StorageService.addOrderMessage(chatOrder.id, 'ADMIN', chatMessageInput);
-      const updated = await StorageService.getPaymentById(chatOrder.id);
-      setChatOrder(updated || null);
-      setChatMessageInput('');
-    } catch (err: any) {
-      addToast("Erro ao enviar mensagem.", "error");
-    }
-  };
-
-  const handleSaveConfig = async () => {
-    setSavingConfig(true);
-    try {
-      await StorageService.saveConfig(config);
-      addToast('Configurações salvas com sucesso!', 'success');
-      await refreshAll();
-    } catch (err: any) {
-      addToast('Erro ao salvar no banco. Verifique as colunas SQL.', 'error');
-    } finally {
-      setSavingConfig(false);
-    }
+      await StorageService.updatePaymentStatus(id, status, note || '');
+      addToast(`Pedido ${status === 'APPROVED' ? 'Aprovado' : 'Recusado'}`, 'success');
+      refreshData();
+    } catch (e) { addToast('Erro no processo.', 'error'); }
   };
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen fixed inset-0 z-[100] flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-dark-900 overflow-hidden">
-           <div className="absolute inset-0 opacity-20 bg-[url('https://picsum.photos/1920/1080?grayscale')] bg-cover bg-center blur-sm"></div>
-           <div className="absolute inset-0 bg-gradient-to-br from-brand-900/40 via-dark-900/90 to-black"></div>
-        </div>
-        <div className="relative w-full max-w-md animate-fade-in-up">
-           <div className="bg-dark-800/80 backdrop-blur-xl p-10 rounded-3xl border border-white/10 shadow-2xl">
-             <div className="flex flex-col items-center mb-10">
-                <div className="w-20 h-20 bg-brand-600 rounded-2xl flex items-center justify-center text-white mb-6 shadow-2xl shadow-brand-600/40 transform rotate-3">
-                   <Shield size={40} />
-                </div>
-                <h2 className="text-3xl font-black text-white tracking-tight text-center">ADMIN <span className="text-brand-500">PANEL</span></h2>
-                <p className="text-gray-400 text-sm font-medium mt-2">Área de Acesso Restrita</p>
-             </div>
-             <form onSubmit={handleLogin} className="space-y-6">
-                <div>
-                  <label className="block text-gray-400 text-xs font-bold uppercase tracking-widest mb-3 ml-1">Senha Mestra</label>
-                  <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-brand-500 transition-colors" size={20} />
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full bg-dark-900/50 border border-white/10 text-white pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 transition-all font-mono tracking-widest" placeholder="••••••••" />
-                  </div>
-                </div>
-                <button className="w-full bg-brand-600 hover:bg-brand-500 text-white font-bold py-4 rounded-2xl transition-all shadow-xl shadow-brand-600/20 flex items-center justify-center gap-3 text-lg group">
-                  <LogIn size={22} className="group-hover:translate-x-1 transition-transform" /> ENTRAR NO SISTEMA
-                </button>
-             </form>
-           </div>
+      <div className="min-h-screen flex items-center justify-center bg-dark-900 p-6">
+        <div className="w-full max-w-md bg-dark-800 p-12 rounded-[3rem] border border-white/10 shadow-2xl">
+          <div className="text-center mb-10">
+            <Shield size={64} className="text-brand-500 mx-auto mb-6" />
+            <h1 className="text-3xl font-black text-white uppercase tracking-tighter">Área Governamental</h1>
+          </div>
+          <form onSubmit={handleLogin} className="space-y-6">
+            <input 
+              type="password" 
+              value={password} 
+              onChange={e => setPassword(e.target.value)}
+              className="w-full bg-dark-900 border border-white/10 rounded-2xl p-5 text-white font-mono text-center"
+              placeholder="SENHA MESTRA"
+            />
+            <button className="w-full bg-brand-600 hover:bg-brand-500 text-white font-black py-5 rounded-2xl transition-all">ENTRAR</button>
+          </form>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12 relative">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
-        <div>
-           <h1 className="text-4xl font-black text-white flex items-center gap-3"><Shield className="text-brand-500" size={32} /> Painel Administrativo</h1>
-           <p className="text-gray-500 mt-1">Gestão centralizada do servidor Capital City.</p>
-        </div>
-        <button onClick={handleLogout} className="bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white px-6 py-2 rounded-xl flex items-center gap-2 font-bold transition-all border border-red-500/20">
-          <LogOut size={18} /> Encerrar Sessão
+    <div className="max-w-7xl mx-auto px-6 py-12">
+      <header className="flex justify-between items-center mb-12">
+        <h1 className="text-4xl font-black text-white tracking-tighter uppercase flex items-center gap-3">
+          <Shield className="text-brand-500" /> Admin <span className="text-brand-500">Center</span>
+        </h1>
+        <button onClick={handleLogout} className="text-red-500 font-bold flex items-center gap-2 hover:bg-red-500/10 px-4 py-2 rounded-xl transition-all">
+          <LogOut size={20} /> Sair
         </button>
-      </div>
+      </header>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-        <div className="bg-dark-800 rounded-2xl p-4 h-fit border border-white/5 shadow-xl">
-          <nav className="space-y-1">
-            <button onClick={() => setActiveTab('PAYMENTS')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'PAYMENTS' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'text-gray-400 hover:bg-dark-700 hover:text-white'}`}>
-              <CreditCard size={18} /> Pedidos Pendentes
-              {payments.filter(p => p.status === 'PENDING').length > 0 && (
-                <span className="ml-auto bg-red-500 text-white text-[10px] font-black px-2 py-1 rounded-full animate-pulse">{payments.filter(p => p.status === 'PENDING').length}</span>
-              )}
+      <div className="grid lg:grid-cols-4 gap-8">
+        <aside className="space-y-2">
+          {[
+            { id: 'PAYMENTS', label: 'Vendas/Fila', icon: <CreditCard size={20}/> },
+            { id: 'SHOP', label: 'Estoque Loja', icon: <LayoutGrid size={20}/> },
+            { id: 'RULES', label: 'Constituição', icon: <ScrollText size={20}/> },
+            { id: 'NEWS', label: 'Notícias', icon: <Newspaper size={20}/> },
+            { id: 'CONFIG', label: 'Sistema Geral', icon: <Settings size={20}/> },
+          ].map(tab => (
+            <button 
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-bold transition-all ${activeTab === tab.id ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'text-gray-500 hover:bg-dark-800'}`}
+            >
+              {tab.icon} {tab.label}
             </button>
-            <button onClick={() => setActiveTab('SHOP')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'SHOP' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'text-gray-400 hover:bg-dark-700 hover:text-white'}`}>
-              <LayoutGrid size={18} /> Itens da Loja
-            </button>
-            <button onClick={() => setActiveTab('RULES')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'RULES' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'text-gray-400 hover:bg-dark-700 hover:text-white'}`}>
-              <ScrollText size={18} /> Gerenciar Regras
-            </button>
-            <button onClick={() => setActiveTab('NEWS')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'NEWS' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'text-gray-400 hover:bg-dark-700 hover:text-white'}`}>
-              <Newspaper size={18} /> Central de Notícias
-            </button>
-            <div className="h-px bg-white/5 my-4"></div>
-            <button onClick={() => setActiveTab('CONFIG')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'CONFIG' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'text-gray-400 hover:bg-dark-700 hover:text-white'}`}>
-              <Settings size={18} /> Config. Sistema
-            </button>
-            <button onClick={() => setActiveTab('IMAGES')} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl font-bold transition-all ${activeTab === 'IMAGES' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : 'text-gray-400 hover:bg-dark-700 hover:text-white'}`}>
-              <ImageIcon size={18} /> Banners e Hero
-            </button>
-          </nav>
-        </div>
+          ))}
+        </aside>
 
-        <div className="lg:col-span-3 bg-dark-800 rounded-2xl p-8 border border-white/5 min-h-[600px] shadow-xl">
+        <main className="lg:col-span-3 bg-dark-800 rounded-[2.5rem] border border-white/5 p-10 shadow-2xl min-h-[700px]">
           
-          {activeTab === 'CONFIG' && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="flex justify-between items-center border-b border-white/10 pb-6">
-                <h2 className="text-2xl font-black text-white">Configurações Gerais</h2>
-                <button onClick={handleSaveConfig} disabled={savingConfig} className="bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-xl shadow-brand-600/20 transition-all">
-                  {savingConfig ? <Loader2 className="animate-spin" size={20}/> : <Save size={20} />}
-                  ATUALIZAR TUDO
-                </button>
-              </div>
-
-              <div className="grid gap-8">
-                {/* Downloads Section */}
-                <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
-                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                    <Download className="text-brand-500" size={20}/> URLs de Download (Launchers)
-                  </h3>
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-gray-500 uppercase ml-1 flex items-center gap-1">
-                        <Monitor size={12}/> Launcher PC (.exe)
-                      </label>
-                      <div className="flex gap-2">
-                        <input 
-                          placeholder="https://link-do-download-pc.exe" 
-                          value={config.pcDownloadUrl} 
-                          onChange={e => setConfig({...config, pcDownloadUrl: e.target.value})} 
-                          className="flex-grow bg-dark-800 border border-white/10 p-4 rounded-xl text-white text-sm focus:border-brand-500 focus:outline-none transition-all"
-                        />
-                        <button onClick={() => handleTestLink(config.pcDownloadUrl)} className="bg-dark-700 hover:bg-brand-600 text-white p-4 rounded-xl transition-all" title="Testar Download">
-                          <ExternalLink size={18}/>
-                        </button>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-black text-gray-500 uppercase ml-1 flex items-center gap-1">
-                        <Smartphone size={12}/> Launcher Mobile (.apk)
-                      </label>
-                      <div className="flex gap-2">
-                        <input 
-                          placeholder="https://link-do-download-mobile.apk" 
-                          value={config.mobileDownloadUrl} 
-                          onChange={e => setConfig({...config, mobileDownloadUrl: e.target.value})} 
-                          className="flex-grow bg-dark-800 border border-white/10 p-4 rounded-xl text-white text-sm focus:border-brand-500 focus:outline-none transition-all"
-                        />
-                        <button onClick={() => handleTestLink(config.mobileDownloadUrl)} className="bg-dark-700 hover:bg-brand-600 text-white p-4 rounded-xl transition-all" title="Testar Download">
-                          <ExternalLink size={18}/>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-brand-600/10 p-6 rounded-2xl border border-brand-500/30">
-                   <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-                      <BellRing className="text-brand-500" size={20}/> Alertas Discord (Novos Pedidos)
-                   </h3>
-                   <div className="flex gap-4">
-                      <input 
-                        type="text" 
-                        placeholder="Discord Webhook URL" 
-                        value={config.discordWebhookUrl} 
-                        onChange={e => setConfig({...config, discordWebhookUrl: e.target.value})} 
-                        className="flex-grow bg-dark-900/50 border border-white/10 p-4 rounded-xl text-white focus:border-brand-500 focus:outline-none font-mono text-xs"
-                      />
-                      <button onClick={handleTestWebhook} disabled={testingWebhook} className="bg-white/10 hover:bg-white/20 text-white px-6 py-4 rounded-xl font-bold flex items-center gap-2 transition-all">
-                        {testingWebhook ? <Loader2 className="animate-spin" size={18}/> : <Send size={18}/>}
-                        <span className="hidden sm:inline">TESTAR</span>
-                      </button>
-                   </div>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-6">
-                   <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
-                      <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Coins className="text-yellow-500" size={20}/> Economia & CapiCoin</h3>
-                      <div className="relative">
-                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">R$</span>
-                        <input type="number" step="0.01" value={config.capiCoinPrice} onChange={e => setConfig({...config, capiCoinPrice: parseFloat(e.target.value) || 0})} className="w-full bg-dark-800 border border-white/10 p-4 pl-12 rounded-xl text-white font-bold text-lg" />
-                      </div>
-                      <p className="text-[10px] text-gray-500 mt-2">Preço por cada 1 unidade de CapiCoin no checkout.</p>
-                   </div>
-                   <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
-                      <h3 className="text-lg font-bold text-white mb-4">Social & Meios de Pagamento</h3>
-                      <label className="text-[10px] font-bold text-gray-600 uppercase mb-1 block">Convite Discord</label>
-                      <input placeholder="Ex: discord.gg/suacidade" value={config.discordUrl} onChange={e => setConfig({...config, discordUrl: e.target.value})} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white mb-4 text-sm"/>
-                      <label className="text-[10px] font-bold text-gray-600 uppercase mb-1 block">Chave PIX (E-mail, CPF, Aleatória)</label>
-                      <input placeholder="Chave para recebimento" value={config.pixKey} onChange={e => setConfig({...config, pixKey: e.target.value})} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white text-sm"/>
-                   </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'SHOP' && (
-            <div>
-               <div className="flex justify-between items-center mb-8">
-                 <h2 className="text-2xl font-black text-white">Gerenciar Estoque da Loja</h2>
-                 {editingShopId && (
-                   <button onClick={resetShopForm} className="bg-red-500/20 text-red-400 px-4 py-2 rounded-xl font-bold hover:bg-red-500 hover:text-white transition-all">Cancelar Edição</button>
-                 )}
-               </div>
-               <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 mb-12 bg-dark-900/50 p-8 rounded-3xl border ${editingShopId ? 'border-brand-500 shadow-2xl shadow-brand-600/10' : 'border-white/5'}`}>
-                 <div className="space-y-4">
-                    <label className="block text-xs font-black text-gray-500 uppercase ml-1">Nome do Produto</label>
-                    <input placeholder="Ex: Pacote VIP Platinum" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white focus:border-brand-500 focus:outline-none"/>
-                 </div>
-                 <div className="space-y-4">
-                    <label className="block text-xs font-black text-gray-500 uppercase ml-1">Preço (BRL)</label>
-                    <input placeholder="0.00" type="number" value={newItemPrice} onChange={e => setNewItemPrice(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white font-mono focus:border-brand-500 focus:outline-none"/>
-                 </div>
-                 <div className="space-y-4">
-                    <label className="block text-xs font-black text-gray-500 uppercase ml-1">Categoria</label>
-                    <select value={newItemCat} onChange={e => setNewItemCat(e.target.value as Category)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white appearance-none focus:border-brand-500 focus:outline-none">
-                        <option value="VIP">VIP</option>
-                        <option value="COINS">CapiCoins</option>
-                        <option value="VEHICLE">Veículo Especial</option>
-                        <option value="MANSION">Mansão de Luxo</option>
-                        <option value="ORG">Base Organização</option>
-                        <option value="SPECIAL">Serviço Especial</option>
-                    </select>
-                 </div>
-                 <div className="space-y-4">
-                    <label className="block text-xs font-black text-gray-500 uppercase ml-1">Descrição / Benefícios</label>
-                    <input placeholder="Curta descrição dos benefícios..." value={newItemDesc} onChange={e => setNewItemDesc(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white focus:border-brand-500 focus:outline-none"/>
-                 </div>
-                 <div className="col-span-1 md:col-span-2 space-y-4">
-                    <label className="block text-xs font-black text-gray-500 uppercase ml-1">URL Direta da Imagem</label>
-                    <input placeholder="https://i.imgur.com/..." value={newItemImageUrl} onChange={e => setNewItemImageUrl(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-2xl text-white focus:border-brand-500 focus:outline-none" />
-                 </div>
-                 <button onClick={handleSaveShopItem} disabled={uploading} className={`col-span-1 md:col-span-2 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all text-lg shadow-xl ${editingShopId ? 'bg-brand-600 hover:bg-brand-500 text-white shadow-brand-600/20' : 'bg-green-600 hover:bg-green-500 text-white shadow-green-600/20'}`}>
-                    {uploading ? <Loader2 className="animate-spin"/> : editingShopId ? <Save size={22}/> : <Plus size={22}/>}
-                    {uploading ? 'PROCESSANDO...' : editingShopId ? 'ATUALIZAR ITEM' : 'PUBLICAR NA LOJA'}
-                 </button>
-               </div>
-               
-               <div className="space-y-3">
-                 <h3 className="text-xs font-black text-gray-600 uppercase tracking-widest ml-1 mb-4">Itens Ativos</h3>
-                 {shopItems.length === 0 ? (
-                    <div className="text-center py-20 bg-dark-900/30 rounded-3xl border border-dashed border-white/10">
-                       <p className="text-gray-600 font-bold">Nenhum item cadastrado no sistema.</p>
-                    </div>
-                 ) : shopItems.map(i => (
-                   <div key={i.id} className={`bg-dark-900/40 p-5 flex justify-between items-center text-white rounded-2xl border transition-all ${editingShopId === i.id ? 'border-brand-500 bg-brand-600/5' : 'border-white/5 hover:border-white/10'}`}>
-                     <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl overflow-hidden bg-dark-950 border border-white/10">
-                           <img src={i.imageUrl} className="w-full h-full object-cover" />
-                        </div>
-                        <div>
-                            <p className="font-black text-lg">{i.name}</p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] bg-brand-600/20 text-brand-400 font-black px-2 py-0.5 rounded-full uppercase tracking-tighter">{i.category}</span>
-                              <span className="text-xs text-gray-500 font-bold">R$ {i.price.toFixed(2)}</span>
-                            </div>
-                        </div>
-                     </div>
-                     <div className="flex items-center gap-2">
-                        <button onClick={() => startEditShop(i)} className="bg-white/5 hover:bg-brand-500/20 text-brand-400 p-3 rounded-xl transition-all"><Pencil size={20}/></button>
-                        <button 
-                          onClick={() => handleDeleteShopItem(i.id)} 
-                          disabled={deletingId === i.id}
-                          className="bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white p-3 rounded-xl transition-all disabled:opacity-50"
-                        >
-                          {deletingId === i.id ? <Loader2 className="animate-spin" size={20}/> : <Trash2 size={20}/>}
-                        </button>
-                     </div>
-                   </div>
-                 ))}
-               </div>
-            </div>
-          )}
-
-          {activeTab === 'RULES' && (
-             <div className="animate-fade-in">
-                <h2 className="text-2xl font-black text-white mb-8">Gerenciar Constituição (Regras)</h2>
-                <div className={`space-y-6 mb-12 bg-dark-900/50 p-8 rounded-3xl border ${editingRuleId ? 'border-brand-500' : 'border-white/5'}`}>
-                    <div className="grid md:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                           <label className="text-xs font-bold text-gray-600 ml-1">Categoria da Regra</label>
-                           <select value={newRuleCat} onChange={e => setNewRuleCat(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white appearance-none focus:outline-none focus:border-brand-500">
-                              <option value="GENERAL">Geral</option>
-                              <option value="COMBAT">Combate / PVP</option>
-                              <option value="ILLEGAL">Ilegal / Facções</option>
-                              <option value="SAFEZONE">Zonas Seguras</option>
-                           </select>
-                        </div>
-                        <div className="space-y-2">
-                           <label className="text-xs font-bold text-gray-600 ml-1">Título do Artigo</label>
-                           <input placeholder="Ex: Anti-RP e VDM" value={newRuleTitle} onChange={e => setNewRuleTitle(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white focus:outline-none focus:border-brand-500"/>
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                       <label className="text-xs font-bold text-gray-600 ml-1">Texto do Artigo</label>
-                       <textarea placeholder="Descreva a regra detalhadamente..." value={newRuleContent} onChange={e => setNewRuleContent(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white h-32 focus:outline-none focus:border-brand-500 resize-none"/>
-                    </div>
-                    <button onClick={handleSaveRule} className={`text-white py-4 rounded-xl font-black w-full shadow-xl transition-all ${editingRuleId ? 'bg-brand-600 hover:bg-brand-500' : 'bg-green-600 hover:bg-green-500'}`}>
-                      {editingRuleId ? 'ATUALIZAR ARTIGO' : 'PUBLICAR REGRA'}
-                    </button>
-                </div>
-                <div className="space-y-3">
-                 {rules.map(r => (
-                   <div key={r.id} className="bg-dark-900/40 p-5 flex justify-between items-center text-white rounded-2xl border border-white/5">
-                     <div>
-                        <span className="text-[10px] text-brand-400 font-black uppercase tracking-widest">{r.category}</span>
-                        <p className="font-black text-lg">{r.title}</p>
-                     </div>
-                     <div className="flex items-center gap-2">
-                        <button onClick={() => startEditRule(r)} className="bg-white/5 text-brand-400 p-3 rounded-xl hover:bg-brand-600/20 transition-all"><Pencil size={18}/></button>
-                        <button onClick={() => handleDeleteRule(r.id)} className="bg-white/5 text-red-500 p-3 rounded-xl hover:bg-red-500/20 transition-all"><Trash2 size={18}/></button>
-                     </div>
-                   </div>
-                 ))}
-               </div>
-             </div>
-          )}
-
-          {activeTab === 'NEWS' && (
-             <div className="animate-fade-in">
-                <h2 className="text-2xl font-black text-white mb-8">Postagens da Central de Notícias</h2>
-                <div className={`space-y-6 mb-12 bg-dark-900/50 p-8 rounded-3xl border ${editingNewsId ? 'border-brand-500' : 'border-white/5'}`}>
-                    <input placeholder="Título Chamativo" value={newNewsTitle} onChange={e => setNewNewsTitle(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white font-black text-lg focus:outline-none focus:border-brand-500"/>
-                    <input placeholder="Resumo (Aparece no Card inicial)" value={newNewsSummary} onChange={e => setNewNewsSummary(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white focus:outline-none focus:border-brand-500"/>
-                    <textarea placeholder="Conteúdo completo da postagem..." value={newNewsContent} onChange={e => setNewNewsContent(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white h-48 focus:outline-none focus:border-brand-500 resize-none"/>
-                    <input placeholder="URL da Capa (Imagem de Destaque)" value={newNewsImageUrl} onChange={e => setNewNewsImageUrl(e.target.value)} className="w-full bg-dark-800 border border-white/10 p-4 rounded-xl text-white focus:outline-none focus:border-brand-500" />
-                    <button onClick={handleSaveNews} disabled={uploading} className={`text-white py-4 rounded-xl font-black w-full shadow-xl transition-all ${editingNewsId ? 'bg-brand-600 hover:bg-brand-500' : 'bg-green-600 hover:bg-green-500'}`}>
-                       {uploading ? <Loader2 className="animate-spin mx-auto"/> : editingNewsId ? 'SALVAR EDIÇÃO' : 'PUBLICAR POSTAGEM'}
-                    </button>
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                 {news.map(n => (
-                   <div key={n.id} className="bg-dark-900/40 p-5 flex justify-between items-center text-white rounded-2xl border border-white/5">
-                     <div className="flex items-center gap-3 truncate">
-                        <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0">
-                           <img src={n.imageUrl} className="w-full h-full object-cover" />
-                        </div>
-                        <p className="font-bold truncate">{n.title}</p>
-                     </div>
-                     <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => startEditNews(n)} className="bg-white/5 text-brand-400 p-3 rounded-xl hover:bg-brand-600/20 transition-all"><Pencil size={18}/></button>
-                        <button onClick={() => handleDeleteNews(n.id)} className="bg-white/5 text-red-500 p-3 rounded-xl hover:bg-red-500/20 transition-all"><Trash2 size={18}/></button>
-                     </div>
-                   </div>
-                 ))}
-               </div>
-             </div>
-          )}
-
+          {/* PAYMENTS TAB (SISTEMA DE VENDAS PRESERVADO) */}
           {activeTab === 'PAYMENTS' && (
-            <div className="animate-fade-in">
+            <div className="space-y-6">
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-black text-white">Fila de Compras & Pagamentos</h2>
-                <button onClick={refreshAll} className="bg-brand-600/10 text-brand-400 p-3 rounded-xl hover:bg-brand-600 hover:text-white transition-all flex items-center gap-2">
-                  <RefreshCw size={18}/>
-                  <span className="text-xs font-black">ATUALIZAR</span>
-                </button>
+                <h2 className="text-2xl font-black text-white uppercase">Fila de Ativação</h2>
+                <button onClick={refreshData} className="p-3 bg-dark-900 rounded-xl text-gray-500 hover:text-white transition-all"><RefreshCw size={24} className={loading ? 'animate-spin' : ''}/></button>
               </div>
-              
-              {payments.length === 0 ? (
-                 <div className="text-center py-32 text-gray-700 bg-dark-900/20 rounded-3xl border border-dashed border-white/5">
-                    <CreditCard size={64} className="mx-auto mb-4 opacity-10" />
-                    <p className="font-bold">Nenhum pedido pendente no momento.</p>
-                 </div>
-              ) : (
-                <div className="grid gap-6">
-                  {payments.map(payment => (
-                    <div key={payment.id} className={`bg-dark-900/60 rounded-3xl border p-6 transition-all ${payment.status === 'PENDING' ? 'border-brand-500 shadow-[0_0_30px_rgba(59,130,246,0.1)]' : 'border-white/5 opacity-80'}`}>
-                      <div className="flex flex-col lg:flex-row justify-between gap-6">
-                        <div className="flex-grow">
-                           <div className="flex items-center gap-3 mb-4">
-                             <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest ${payment.status === 'PENDING' ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20' : payment.status === 'APPROVED' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>{payment.status}</span>
-                             <span className="text-[10px] text-gray-500 font-bold uppercase">{payment.createdAt}</span>
-                           </div>
-                           <h3 className="font-black text-white text-2xl mb-1">{payment.itemName}</h3>
-                           <p className="text-brand-400 font-black mb-4 tracking-tight">R$ {payment.itemPrice.toFixed(2)}</p>
-                           
-                           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-dark-950/50 p-4 rounded-2xl border border-white/5 text-sm text-gray-300">
-                             <div><p className="text-[10px] text-gray-600 font-black uppercase mb-1">Jogador</p><span className="font-bold">{payment.playerNick}</span></div>
-                             <div><p className="text-[10px] text-gray-600 font-black uppercase mb-1">ID Jogo</p><span className="font-mono text-xs">#{payment.playerId}</span></div>
-                             <div><p className="text-[10px] text-gray-600 font-black uppercase mb-1">Discord</p><span className="font-medium text-xs">{payment.discordContact}</span></div>
-                           </div>
-                        </div>
-                        <div className="flex lg:flex-col gap-2 shrink-0 justify-end lg:justify-start">
-                           <button onClick={() => setChatOrder(payment)} className="flex-1 lg:flex-none bg-brand-600 hover:bg-brand-500 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm shadow-lg shadow-brand-600/10 transition-all active:scale-95"><MessageCircle size={18} /> Chat</button>
-                           <button onClick={() => setViewingProof(payment.proofImageUrl)} className="flex-1 lg:flex-none bg-white/5 hover:bg-white/10 text-white px-5 py-3 rounded-xl font-bold flex items-center justify-center gap-2 text-sm transition-all"><Eye size={18} /> Ver Print</button>
-                           {payment.status === 'PENDING' && (
-                            <div className="flex lg:flex-col gap-2">
-                              <button onClick={() => updatePaymentStatus(payment.id, 'APPROVED')} className="bg-green-600 hover:bg-green-500 text-white px-5 py-3 rounded-xl font-black flex items-center justify-center gap-2 text-sm shadow-xl shadow-green-600/10 transition-all active:scale-95"><CheckCircle size={18} /> APROVAR</button>
-                              <button onClick={() => updatePaymentStatus(payment.id, 'REJECTED')} className="bg-red-500 hover:bg-red-600 text-white px-5 py-3 rounded-xl font-black flex items-center justify-center gap-2 text-sm shadow-xl shadow-red-600/10 transition-all active:scale-95"><XCircle size={18} /> RECUSAR</button>
-                            </div>
-                           )}
-                        </div>
+
+              <div className="space-y-4">
+                {payments.map(p => (
+                  <div key={p.id} className="bg-dark-900/50 p-6 rounded-3xl border border-white/5 flex items-center justify-between group hover:border-brand-500/30 transition-all">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${p.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-500' : 'bg-green-500/20 text-green-500'}`}>{p.status}</span>
+                        <span className="text-[10px] text-gray-600 font-mono">{p.id.slice(0,8)}</span>
                       </div>
+                      <h3 className="text-xl font-bold text-white">{p.itemName}</h3>
+                      <p className="text-brand-500 font-black">R$ {p.itemPrice.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500 mt-1">{p.playerNick} (ID: {p.playerId})</p>
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className="flex items-center gap-3">
+                      <button onClick={async () => { const d = await StorageService.getPaymentById(p.id); setActiveChatOrder(d); }} className="bg-brand-600/10 text-brand-500 p-4 rounded-2xl hover:bg-brand-600 hover:text-white transition-all"><MessageCircle size={24}/></button>
+                      <button onClick={() => setViewingProof(p.proofImageUrl)} className="bg-white/5 text-white p-4 rounded-2xl hover:bg-white/10 transition-all"><Eye size={24}/></button>
+                      {p.status === 'PENDING' && (
+                        <>
+                          <button onClick={() => updatePaymentStatus(p.id, 'APPROVED')} className="bg-green-600 text-white p-4 rounded-2xl hover:bg-green-500 transition-all"><CheckCircle size={24}/></button>
+                          <button onClick={() => updatePaymentStatus(p.id, 'REJECTED')} className="bg-red-600 text-white p-4 rounded-2xl hover:bg-red-500 transition-all"><XCircle size={24}/></button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
-          {activeTab === 'IMAGES' && (
-            <div className="space-y-8 animate-fade-in">
-              <div className="flex justify-between items-center border-b border-white/10 pb-6">
-                <h2 className="text-2xl font-black text-white">Identidade Visual (Banners)</h2>
-                <button onClick={handleSaveConfig} disabled={savingConfig} className="bg-brand-600 hover:bg-brand-500 disabled:opacity-50 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 shadow-xl shadow-brand-600/20 transition-all">
-                  {savingConfig ? <Loader2 className="animate-spin" size={20}/> : <Save size={20} />}
-                  SALVAR IMAGENS
+          {/* SHOP TAB (FIXED) */}
+          {activeTab === 'SHOP' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-black text-white uppercase">Estoque da Loja</h2>
+                <button 
+                  onClick={() => { setEditingItem({ category: 'VIP', price: 0, name: '', description: '', imageUrl: '' }); setShowItemModal(true); }} 
+                  className="bg-brand-600 px-6 py-3 rounded-xl text-white font-bold flex items-center gap-2"
+                >
+                  <Plus size={20}/> NOVO PRODUTO
                 </button>
               </div>
-              <div className="grid gap-8">
-                <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
-                  <h3 className="text-lg font-bold text-white mb-4">Background Hero (Home)</h3>
-                  <div className="grid md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2">
-                      <label className="block text-xs font-black text-gray-500 uppercase mb-2 ml-1">URL Direta da Imagem</label>
-                      <input type="text" value={config.homeBackgroundUrl} onChange={(e) => setConfig({...config, homeBackgroundUrl: e.target.value})} className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-500 focus:outline-none transition-all" placeholder="https://i.imgur.com/..." />
+              <div className="grid md:grid-cols-2 gap-4">
+                {shopItems.map(item => (
+                  <div key={item.id} className="bg-dark-900/50 p-4 rounded-2xl border border-white/5 flex items-center gap-4 group">
+                    <img src={item.imageUrl} className="w-16 h-16 rounded-xl object-cover border border-white/10" />
+                    <div className="flex-grow">
+                      <h4 className="font-bold text-white text-sm line-clamp-1">{item.name}</h4>
+                      <p className="text-brand-500 font-black">R$ {item.price.toFixed(2)}</p>
                     </div>
-                    <div className="h-32 rounded-2xl overflow-hidden border-2 border-brand-500/20 bg-dark-950 flex items-center justify-center group relative">
-                        {config.homeBackgroundUrl ? <img src={config.homeBackgroundUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="Preview"/> : <span className="text-gray-700 text-xs">Sem Preview</span>}
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button onClick={() => { setEditingItem(item); setShowItemModal(true); }} className="text-gray-400 hover:text-white p-2 bg-dark-800 rounded-lg"><Pencil size={18}/></button>
+                      <button onClick={() => handleDeleteItem(item.id)} className="text-gray-400 hover:text-red-500 p-2 bg-dark-800 rounded-lg"><Trash2 size={18}/></button>
                     </div>
                   </div>
-                </div>
-                <div className="bg-dark-900/50 p-6 rounded-2xl border border-white/5">
-                  <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">Banner Seção "Sobre"</h3>
-                   <div className="grid md:grid-cols-3 gap-6">
-                    <div className="md:col-span-2">
-                       <label className="block text-xs font-black text-gray-500 uppercase mb-2 ml-1">URL Direta da Imagem</label>
-                       <input type="text" value={config.aboutImageUrl} onChange={(e) => setConfig({...config, aboutImageUrl: e.target.value})} className="w-full bg-dark-800 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-brand-500 focus:outline-none transition-all" placeholder="https://i.imgur.com/..." />
-                    </div>
-                    <div className="h-32 rounded-2xl overflow-hidden border-2 border-brand-500/20 bg-dark-950 flex items-center justify-center group relative">
-                        {config.aboutImageUrl ? <img src={config.aboutImageUrl} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt="Preview"/> : <span className="text-gray-700 text-xs">Sem Preview</span>}
-                    </div>
-                   </div>
-                </div>
+                ))}
               </div>
             </div>
           )}
-        </div>
+
+          {/* RULES TAB (FIXED) */}
+          {activeTab === 'RULES' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-black text-white uppercase">Constituição</h2>
+                <button 
+                  onClick={() => { setEditingRule({ category: 'GENERAL', title: '', content: '' }); setShowRuleModal(true); }} 
+                  className="bg-brand-600 px-6 py-3 rounded-xl text-white font-bold flex items-center gap-2"
+                >
+                  <Plus size={20}/> NOVO ARTIGO
+                </button>
+              </div>
+              <div className="space-y-4">
+                {rules.map(rule => (
+                  <div key={rule.id} className="bg-dark-900/50 p-6 rounded-3xl border border-white/5 flex justify-between items-center group">
+                    <div className="flex-grow pr-6">
+                      <span className="text-[10px] font-black text-brand-500 uppercase tracking-widest">{rule.category}</span>
+                      <h4 className="font-bold text-white text-lg">{rule.title}</h4>
+                      <p className="text-gray-500 text-sm line-clamp-1 mt-1">{rule.content}</p>
+                    </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      <button onClick={() => { setEditingRule(rule); setShowRuleModal(true); }} className="text-gray-400 hover:text-white p-3 bg-dark-800 rounded-xl"><Pencil size={20}/></button>
+                      <button onClick={() => handleDeleteRule(rule.id)} className="text-gray-400 hover:text-red-500 p-3 bg-dark-800 rounded-xl"><Trash2 size={20}/></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* NEWS TAB (FIXED) */}
+          {activeTab === 'NEWS' && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-2xl font-black text-white uppercase">Comunicados</h2>
+                <button 
+                  onClick={() => { setEditingNews({ title: '', summary: '', content: '', imageUrl: '' }); setShowNewsModal(true); }} 
+                  className="bg-brand-600 px-6 py-3 rounded-xl text-white font-bold flex items-center gap-2"
+                >
+                  <Plus size={20}/> NOVA POSTAGEM
+                </button>
+              </div>
+              <div className="space-y-4">
+                {news.map(n => (
+                  <div key={n.id} className="bg-dark-900/50 p-6 rounded-3xl border border-white/5 flex items-center gap-6 group">
+                    <img src={n.imageUrl} className="w-20 h-20 rounded-2xl object-cover border border-white/10" />
+                    <div className="flex-grow">
+                      <h4 className="font-bold text-white text-lg">{n.title}</h4>
+                      <p className="text-gray-500 text-sm line-clamp-1">{n.summary}</p>
+                      <p className="text-[10px] text-gray-600 mt-2 uppercase font-black">{n.date}</p>
+                    </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                      <button onClick={() => { setEditingNews(n); setShowNewsModal(true); }} className="text-gray-400 hover:text-white p-3 bg-dark-800 rounded-xl"><Pencil size={20}/></button>
+                      <button onClick={() => handleDeleteNews(n.id)} className="text-gray-400 hover:text-red-500 p-3 bg-dark-800 rounded-xl"><Trash2 size={20}/></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* CONFIG TAB (PRESERVADA) */}
+          {activeTab === 'CONFIG' && (
+            <div className="space-y-10">
+              <div className="flex justify-between items-center border-b border-white/10 pb-6">
+                <h2 className="text-2xl font-black text-white uppercase tracking-tight">Sistema Geral</h2>
+                <button onClick={handleSaveConfig} disabled={saving} className="bg-brand-600 hover:bg-brand-500 text-white px-8 py-3 rounded-xl font-black flex items-center gap-2 transition-all">
+                  {saving ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>} SALVAR
+                </button>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-10">
+                <section className="space-y-6">
+                  <h3 className="text-lg font-black text-brand-400 flex items-center gap-2 border-l-4 border-brand-500 pl-4">Interface</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-black text-gray-500 uppercase block mb-2">Wallpaper Home</label>
+                      <input value={config.homeBackgroundUrl} onChange={e => setConfig({...config, homeBackgroundUrl: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white text-sm" placeholder="https://..." />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-500 uppercase block mb-2">Imagem Quem Somos</label>
+                      <input value={config.aboutImageUrl} onChange={e => setConfig({...config, aboutImageUrl: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white text-sm" placeholder="https://..." />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-6">
+                  <h3 className="text-lg font-black text-brand-400 flex items-center gap-2 border-l-4 border-brand-500 pl-4">Links</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-[10px] font-black text-gray-500 uppercase block mb-2">Discord Oficial</label>
+                      <input value={config.discordUrl} onChange={e => setConfig({...config, discordUrl: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black text-gray-500 uppercase block mb-2">Discord Webhook</label>
+                      <input value={config.discordWebhookUrl} onChange={e => setConfig({...config, discordWebhookUrl: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white text-xs" />
+                    </div>
+                  </div>
+                </section>
+
+                <section className="space-y-6">
+                  <h3 className="text-lg font-black text-brand-400 flex items-center gap-2 border-l-4 border-brand-500 pl-4">Downloads</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <input value={config.pcDownloadUrl} onChange={e => setConfig({...config, pcDownloadUrl: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white text-xs" placeholder="URL PC" />
+                    <input value={config.mobileDownloadUrl} onChange={e => setConfig({...config, mobileDownloadUrl: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white text-xs" placeholder="URL Mobile" />
+                  </div>
+                </section>
+
+                <section className="space-y-6">
+                  <h3 className="text-lg font-black text-brand-400 flex items-center gap-2 border-l-4 border-brand-500 pl-4">Financeiro</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <input type="number" step="0.1" value={config.capiCoinPrice} onChange={e => setConfig({...config, capiCoinPrice: parseFloat(e.target.value)})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white" />
+                    <input value={config.pixKey} onChange={e => setConfig({...config, pixKey: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white text-xs" placeholder="Chave PIX" />
+                  </div>
+                </section>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
 
-      {/* Proof Viewer Modal */}
-      {viewingProof && (
-        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in" onClick={() => setViewingProof(null)}>
-          <div className="bg-dark-900 p-2 rounded-3xl max-w-3xl max-h-[90vh] overflow-auto relative border border-white/10 shadow-2xl shadow-brand-500/10" onClick={e => e.stopPropagation()}>
-            <button className="absolute top-6 right-6 text-white bg-black/50 p-3 rounded-full hover:bg-red-500 transition-all z-20" onClick={() => setViewingProof(null)}><X size={24} /></button>
-            <img src={viewingProof} alt="Comprovante Bancário" className="max-w-full rounded-2xl shadow-2xl" />
+      {/* --- MODALS --- */}
+
+      {/* SHOP ITEM MODAL */}
+      {showItemModal && editingItem && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-sm">
+          <div className="bg-dark-800 border border-white/10 w-full max-w-xl rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <div className="p-8 border-b border-white/5 flex justify-between items-center">
+              <h3 className="text-2xl font-black text-white">{editingItem.id ? 'EDITAR PRODUTO' : 'NOVO PRODUTO'}</h3>
+              <button onClick={() => setShowItemModal(false)} className="text-gray-500 hover:text-white"><X size={24}/></button>
+            </div>
+            <form onSubmit={handleSaveItem} className="p-8 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <input required placeholder="Nome do Item" value={editingItem.name || ''} onChange={e => setEditingItem({...editingItem, name: e.target.value})} className="col-span-2 bg-dark-900 border border-white/10 rounded-xl p-4 text-white" />
+                <input required type="number" step="0.01" placeholder="Preço (R$)" value={editingItem.price || ''} onChange={e => setEditingItem({...editingItem, price: parseFloat(e.target.value)})} className="bg-dark-900 border border-white/10 rounded-xl p-4 text-white" />
+                <select value={editingItem.category || 'VIP'} onChange={e => setEditingItem({...editingItem, category: e.target.value as any})} className="bg-dark-900 border border-white/10 rounded-xl p-4 text-white">
+                  <option value="VIP">VIP</option>
+                  <option value="VEHICLE">Veículo</option>
+                  <option value="MANSION">Mansão</option>
+                  <option value="ORG">Organização</option>
+                  <option value="SPECIAL">Especial</option>
+                  <option value="COINS">CapiCoins</option>
+                </select>
+                <input required placeholder="Link da Imagem" value={editingItem.imageUrl || ''} onChange={e => setEditingItem({...editingItem, imageUrl: e.target.value})} className="col-span-2 bg-dark-900 border border-white/10 rounded-xl p-4 text-white" />
+                <textarea required placeholder="Benefícios (separados por vírgula)" value={editingItem.description || ''} onChange={e => setEditingItem({...editingItem, description: e.target.value})} className="col-span-2 bg-dark-900 border border-white/10 rounded-xl p-4 text-white h-24" />
+              </div>
+              <button className="w-full bg-brand-600 text-white font-black py-5 rounded-2xl shadow-xl">SALVAR NO ESTOQUE</button>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Admin Chat Modal */}
-      {chatOrder && (
-         <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-           <div className="bg-dark-800 w-full max-w-xl rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col h-[650px]" onClick={e => e.stopPropagation()}>
-             <div className="bg-dark-900 p-6 border-b border-white/5 flex justify-between items-center">
-               <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-brand-600/20 rounded-xl flex items-center justify-center text-brand-400 font-bold border border-brand-500/20 shadow-inner">
-                    {chatOrder.playerNick.charAt(0)}
+      {/* RULE MODAL */}
+      {showRuleModal && editingRule && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-sm">
+          <div className="bg-dark-800 border border-white/10 w-full max-w-xl rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <div className="p-8 border-b border-white/5 flex justify-between items-center">
+              <h3 className="text-2xl font-black text-white">{editingRule.id ? 'EDITAR ARTIGO' : 'NOVO ARTIGO'}</h3>
+              <button onClick={() => setShowRuleModal(false)} className="text-gray-500 hover:text-white"><X size={24}/></button>
+            </div>
+            <form onSubmit={handleSaveRule} className="p-8 space-y-4">
+              <input required placeholder="Título da Regra" value={editingRule.title || ''} onChange={e => setEditingRule({...editingRule, title: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white font-bold" />
+              <select value={editingRule.category || 'GENERAL'} onChange={e => setEditingRule({...editingRule, category: e.target.value as any})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white">
+                <option value="GENERAL">Código Civil</option>
+                <option value="COMBAT">Diretrizes de Combate</option>
+                <option value="ILLEGAL">Atividades Ilícitas</option>
+                <option value="SAFEZONE">Zonas de Segurança</option>
+              </select>
+              <textarea required placeholder="Conteúdo do Artigo..." value={editingRule.content || ''} onChange={e => setEditingRule({...editingRule, content: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white h-64 resize-none" />
+              <button className="w-full bg-brand-600 text-white font-black py-5 rounded-2xl shadow-xl">SALVAR CONSTITUIÇÃO</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* NEWS MODAL */}
+      {showNewsModal && editingNews && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/90 backdrop-blur-sm">
+          <div className="bg-dark-800 border border-white/10 w-full max-w-xl rounded-[2.5rem] overflow-hidden shadow-2xl">
+            <div className="p-8 border-b border-white/5 flex justify-between items-center">
+              <h3 className="text-2xl font-black text-white">{editingNews.id ? 'EDITAR NOTÍCIA' : 'NOVA NOTÍCIA'}</h3>
+              <button onClick={() => setShowNewsModal(false)} className="text-gray-500 hover:text-white"><X size={24}/></button>
+            </div>
+            <form onSubmit={handleSaveNews} className="p-8 space-y-4">
+              <input required placeholder="Título Principal" value={editingNews.title || ''} onChange={e => setEditingNews({...editingNews, title: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white font-black" />
+              <input required placeholder="Breve Resumo" value={editingNews.summary || ''} onChange={e => setEditingNews({...editingNews, summary: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white text-sm" />
+              <input required placeholder="URL da Imagem de Capa" value={editingNews.imageUrl || ''} onChange={e => setEditingNews({...editingNews, imageUrl: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white text-xs" />
+              <textarea required placeholder="Conteúdo Completo..." value={editingNews.content || ''} onChange={e => setEditingNews({...editingNews, content: e.target.value})} className="w-full bg-dark-900 border border-white/10 rounded-xl p-4 text-white h-48 resize-none" />
+              <button className="w-full bg-brand-600 text-white font-black py-5 rounded-2xl shadow-xl">PUBLICAR AGORA</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CHAT & PROOF MODALS (MANTIDOS) */}
+      {activeChatOrder && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm">
+          <div className="bg-dark-800 w-full max-w-2xl h-[80vh] rounded-[2.5rem] flex flex-col overflow-hidden shadow-2xl border border-white/10">
+            <header className="p-6 bg-dark-900 flex justify-between items-center border-b border-white/5">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-brand-600 flex items-center justify-center text-white"><User size={24}/></div>
+                <div>
+                  <h3 className="text-white font-bold">{activeChatOrder.playerNick}</h3>
+                  <p className="text-xs text-gray-500 uppercase">Pedido #{activeChatOrder.id.slice(0,8)}</p>
+                </div>
+              </div>
+              <button onClick={() => setActiveChatOrder(null)} className="p-2 text-gray-500 hover:text-white bg-dark-800 rounded-xl"><X size={24}/></button>
+            </header>
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-dark-900/50">
+              {activeChatOrder.messages?.map((msg, i) => (
+                <div key={i} className={`flex ${msg.sender === 'ADMIN' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[80%] p-4 rounded-2xl ${msg.sender === 'ADMIN' ? 'bg-brand-600 text-white rounded-tr-none' : 'bg-dark-700 text-gray-200 rounded-tl-none'}`}>
+                    <p className="text-sm">{msg.content}</p>
+                    <span className="text-[10px] opacity-50 block mt-1">{msg.timestamp}</span>
                   </div>
-                  <div>
-                    <h3 className="font-black text-white text-lg leading-tight">{chatOrder.playerNick}</h3>
-                    <p className="text-xs text-gray-500 font-medium">{chatOrder.itemName}</p>
-                  </div>
-               </div>
-               <button onClick={() => setChatOrder(null)} className="text-gray-500 hover:text-white p-2 transition-all hover:rotate-90"><XCircle size={32} /></button>
-             </div>
-             
-             <div className="flex-grow bg-dark-900/30 p-6 overflow-y-auto space-y-6 scrollbar-hide">
-                {chatOrder.messages?.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-700 space-y-4">
-                    <MessageCircle size={48} className="opacity-10"/>
-                    <p className="text-sm font-bold">Inicie a conversa com o jogador.</p>
-                  </div>
-                ) : chatOrder.messages?.map((msg) => (
-                  <div key={msg.id} className={`flex ${msg.sender === 'ADMIN' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] rounded-3xl px-5 py-4 shadow-md ${msg.sender === 'ADMIN' ? 'bg-brand-600 text-white rounded-tr-none' : 'bg-dark-700 text-gray-200 rounded-tl-none border border-white/10'}`}>
-                      <div className="flex items-center gap-2 mb-2">
-                         <span className="text-[10px] font-black uppercase opacity-60 flex items-center gap-1">
-                            {msg.sender === 'ADMIN' ? <Shield size={10}/> : <User size={10}/>} {msg.sender}
-                         </span>
-                         <span className="text-[10px] opacity-40 font-bold">{msg.timestamp}</span>
-                      </div>
-                      <p className="text-sm leading-relaxed">{msg.content}</p>
-                    </div>
-                  </div>
-                ))}
-                <div ref={chatEndRef} />
-             </div>
-             
-             <form onSubmit={handleSendAdminMessage} className="p-6 bg-dark-800 border-t border-white/5 flex gap-3">
-                <input className="flex-grow bg-dark-900 border border-white/10 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-brand-500 transition-all shadow-inner" placeholder="Escreva uma mensagem para o jogador..." value={chatMessageInput} onChange={(e) => setChatMessageInput(e.target.value)} />
-                <button type="submit" className="bg-brand-600 hover:bg-brand-500 text-white w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg active:scale-95 transition-all shrink-0"><Send size={24} /></button>
-             </form>
-           </div>
-         </div>
+                </div>
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+            <form onSubmit={handleSendChatMessage} className="p-6 bg-dark-800 border-t border-white/5 flex gap-4">
+              <input value={chatMessage} onChange={e => setChatMessage(e.target.value)} placeholder="Escreva para o cidadão..." className="flex-1 bg-dark-900 border border-white/5 rounded-2xl px-6 py-4 text-white outline-none" />
+              <button className="bg-brand-600 hover:bg-brand-500 text-white p-4 rounded-2xl transition-all"><Send size={24}/></button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {viewingProof && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/95" onClick={() => setViewingProof(null)}>
+          <img src={viewingProof} className="max-w-full max-h-[85vh] rounded-2xl shadow-2xl object-contain" alt="Comprovante" />
+        </div>
       )}
     </div>
   );

@@ -1,116 +1,111 @@
+
 import React, { useEffect, useState } from 'react';
-import { Download, PlayCircle, Server, Monitor, Smartphone, FolderOpen, User, Settings, Zap } from 'lucide-react';
+import { Download, PlayCircle, Monitor, Smartphone, Zap, CheckCircle2, ShieldCheck, Loader2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { StorageService } from '../services/storage';
 import { ServerConfig } from '../types';
+import { useToast } from '../components/ToastSystem';
 
 export const Start: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<'pc' | 'mobile'>('pc');
-  const [config, setConfig] = useState<ServerConfig>({} as ServerConfig);
+  const [config, setConfig] = useState<ServerConfig | null>(null);
+  const { addToast } = useToast();
 
   useEffect(() => {
     StorageService.getConfig().then(setConfig);
     const platform = searchParams.get('platform');
-    if (platform === 'mobile') {
-      setActiveTab('mobile');
-    } else {
-      setActiveTab('pc');
-    }
+    if (platform === 'mobile') setActiveTab('mobile');
   }, [searchParams]);
 
   const handleDownload = (type: 'pc' | 'mobile') => {
-    const url = type === 'pc' ? config.pcDownloadUrl : config.mobileDownloadUrl;
-    if (url) {
+    const url = type === 'pc' ? config?.pcDownloadUrl : config?.mobileDownloadUrl;
+    if (url && url.trim() !== '') {
       window.open(url, '_blank');
+      addToast('Download iniciado!', 'success');
     } else {
-      alert('Link de download não configurado pelo administrador.');
+      addToast('Link ainda não configurado pela administração.', 'error');
     }
   };
 
+  if (!config) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <Loader2 className="animate-spin text-brand-500" size={48} />
+      </div>
+    );
+  }
+
   return (
-    <div className="py-12 px-4 max-w-4xl mx-auto">
-      <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-white mb-4">Comece a Jogar</h1>
-        <p className="text-gray-400">Siga o passo a passo simplificado. Nosso Launcher faz tudo por você.</p>
+    <div className="py-16 px-6 max-w-5xl mx-auto animate-fade-in">
+      <div className="text-center mb-16">
+        <h1 className="text-5xl font-black text-white mb-6 tracking-tighter uppercase">Instalação Facilitada</h1>
+        <p className="text-gray-500 text-xl font-medium max-w-2xl mx-auto">Tudo o que você precisa para entrar na metrópole hoje mesmo.</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex justify-center mb-12">
-        <div className="bg-dark-800 p-1 rounded-xl inline-flex border border-white/10">
+      {/* Platform Selector */}
+      <div className="flex justify-center mb-16">
+        <div className="bg-dark-800 p-1.5 rounded-2xl inline-flex border border-white/10 shadow-xl">
           <button
             onClick={() => setActiveTab('pc')}
-            className={`flex items-center gap-2 px-8 py-3 rounded-lg font-bold transition-all ${
-              activeTab === 'pc' 
-                ? 'bg-brand-600 text-white shadow-lg' 
-                : 'text-gray-400 hover:text-white'
+            className={`flex items-center gap-3 px-10 py-4 rounded-xl font-black transition-all ${
+              activeTab === 'pc' ? 'bg-brand-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'
             }`}
           >
-            <Monitor size={20} />
-            PC / Notebook
+            <Monitor size={22} /> PC / DESKTOP
           </button>
           <button
             onClick={() => setActiveTab('mobile')}
-            className={`flex items-center gap-2 px-8 py-3 rounded-lg font-bold transition-all ${
-              activeTab === 'mobile' 
-                ? 'bg-brand-600 text-white shadow-lg' 
-                : 'text-gray-400 hover:text-white'
+            className={`flex items-center gap-3 px-10 py-4 rounded-xl font-black transition-all ${
+              activeTab === 'mobile' ? 'bg-brand-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'
             }`}
           >
-            <Smartphone size={20} />
-            Android / Mobile
+            <Smartphone size={22} /> ANDROID / MOBILE
           </button>
         </div>
       </div>
 
-      <div className="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-brand-600 before:to-transparent">
-        
-        {activeTab === 'pc' ? (
-          <>
-            {/* Step 1 PC: Launcher */}
-            <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active animate-fade-in-up">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full border-2 border-brand-500 bg-dark-900 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-[0_0_15px_rgba(37,99,235,0.5)] z-10">
-                <span className="text-brand-500 font-bold">1</span>
-              </div>
-              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-dark-800 p-6 rounded-xl border border-white/5 hover:border-brand-500/50 transition-all">
-                <div className="flex items-center gap-3 mb-2">
-                  <Zap className="text-brand-400" size={24}/>
-                  <h3 className="text-xl font-bold text-white">Baixar Launcher PC</h3>
-                </div>
-                <p className="text-gray-400 mb-4">Esqueça instalações complicadas. Baixe nosso <strong>Launcher Automático (.exe)</strong> que já contém o jogo e o SA-MP configurados.</p>
-                <button 
-                  onClick={() => handleDownload('pc')}
-                  className="text-sm bg-brand-600 hover:bg-brand-500 px-4 py-2 rounded text-white transition-colors font-bold shadow-lg shadow-brand-600/20 flex items-center gap-2"
-                >
-                  <Download size={16} /> Baixar Launcher (PC)
-                </button>
-              </div>
-            </div>
-            {/* ... Other Steps unchanged in structure, code is shortened for brevity in response but full file logic maintained ... */}
-          </>
-        ) : (
-          <>
-           {/* Mobile steps */}
-           <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active animate-fade-in-up">
-              <div className="flex items-center justify-center w-10 h-10 rounded-full border-2 border-brand-500 bg-dark-900 shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 shadow-[0_0_15px_rgba(37,99,235,0.5)] z-10">
-                <span className="text-brand-500 font-bold">1</span>
-              </div>
-              <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] bg-dark-800 p-6 rounded-xl border border-white/5 hover:border-brand-500/50 transition-all">
-                <div className="flex items-center gap-3 mb-2">
-                  <Smartphone className="text-brand-400" size={24}/>
-                  <h3 className="text-xl font-bold text-white">Baixar APK (Launcher)</h3>
-                </div>
-                <p className="text-gray-400 mb-4">Baixe nosso aplicativo oficial para Android. Ele gerencia tudo para você.</p>
-                <button 
-                  onClick={() => handleDownload('mobile')}
-                  className="text-sm bg-brand-600 hover:bg-brand-500 px-4 py-2 rounded text-white transition-colors font-bold shadow-lg shadow-brand-600/20 flex items-center gap-2"
-                >
-                  <Download size={16} /> Baixar APK
-                </button>
-              </div>
-            </div>
-          </>
-        )}
+      <div className="grid md:grid-cols-3 gap-8">
+        {/* Step 1 */}
+        <div className="bg-dark-800 p-10 rounded-[2.5rem] border border-white/5 relative group hover:border-brand-500/30 transition-all shadow-2xl">
+          <div className="w-14 h-14 bg-brand-600 rounded-2xl flex items-center justify-center text-white font-black text-xl mb-8 group-hover:scale-110 transition-transform">1</div>
+          <h3 className="text-2xl font-black text-white mb-4 uppercase tracking-tight">O Launcher</h3>
+          <p className="text-gray-400 font-medium mb-8 leading-relaxed">
+            {activeTab === 'pc' 
+              ? 'Baixe nosso launcher exclusivo que já inclui o jogo completo e o SA-MP pré-configurado.' 
+              : 'Baixe o APK oficial otimizado para celulares Android com FPS desbloqueado.'}
+          </p>
+          <button 
+            onClick={() => handleDownload(activeTab)}
+            className="w-full bg-brand-600 hover:bg-brand-500 text-white font-black py-4 rounded-xl flex items-center justify-center gap-2 transition-all shadow-lg shadow-brand-600/20"
+          >
+            <Download size={20} /> DOWNLOAD {activeTab.toUpperCase()}
+          </button>
+        </div>
+
+        {/* Step 2 */}
+        <div className="bg-dark-800 p-10 rounded-[2.5rem] border border-white/5 relative group hover:border-brand-500/30 transition-all shadow-2xl">
+          <div className="w-14 h-14 bg-brand-600 rounded-2xl flex items-center justify-center text-white font-black text-xl mb-8 group-hover:scale-110 transition-transform">2</div>
+          <h3 className="text-2xl font-black text-white mb-4 uppercase tracking-tight">Crie sua Identidade</h3>
+          <p className="text-gray-400 font-medium mb-8 leading-relaxed">
+            Após abrir o launcher, insira seu Nick no formato <span className="text-brand-400 font-bold">Nome_Sobrenome</span>.
+          </p>
+          <div className="bg-dark-900/50 p-4 rounded-xl border border-white/5 text-xs font-mono text-gray-500">
+            Exemplo: Bruno_Capitane
+          </div>
+        </div>
+
+        {/* Step 3 */}
+        <div className="bg-dark-800 p-10 rounded-[2.5rem] border border-white/5 relative group hover:border-brand-500/30 transition-all shadow-2xl">
+          <div className="w-14 h-14 bg-brand-600 rounded-2xl flex items-center justify-center text-white font-black text-xl mb-8 group-hover:scale-110 transition-transform">3</div>
+          <h3 className="text-2xl font-black text-white mb-4 uppercase tracking-tight">Conecte-se</h3>
+          <p className="text-gray-400 font-medium mb-8 leading-relaxed">
+            Clique no botão "Entrar na Cidade" e prepare-se para escrever sua história na metrópole.
+          </p>
+          <div className="flex items-center gap-2 text-green-500 font-black text-sm uppercase">
+             <ShieldCheck size={20}/> Conexão Segura Ativa
+          </div>
+        </div>
       </div>
     </div>
   );

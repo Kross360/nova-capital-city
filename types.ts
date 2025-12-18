@@ -1,3 +1,4 @@
+
 export type Category = 'VIP' | 'VEHICLE' | 'MANSION' | 'ORG' | 'SPECIAL' | 'COINS';
 
 export interface ShopItem {
@@ -58,6 +59,7 @@ export interface PaymentRequest {
 }
 
 export interface ServerConfig {
+  id?: string;
   pcDownloadUrl: string;
   mobileDownloadUrl: string;
   discordUrl: string;
@@ -67,5 +69,5 @@ export interface ServerConfig {
   aboutImageUrl: string;
   newsDefaultImageUrl: string;
   capiCoinPrice: number;
-  discordWebhookUrl?: string; // Novo campo para notificações
+  discordWebhookUrl?: string;
 }
