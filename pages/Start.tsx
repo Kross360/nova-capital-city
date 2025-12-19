@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Download, PlayCircle, Monitor, Smartphone, Zap, CheckCircle2, ShieldCheck, Loader2 } from 'lucide-react';
+import { Download, Monitor, Smartphone, ShieldCheck, Loader2, Globe, Copy } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { StorageService } from '../services/storage';
 import { ServerConfig } from '../types';
@@ -24,7 +24,14 @@ export const Start: React.FC = () => {
       window.open(url, '_blank');
       addToast('Download iniciado!', 'success');
     } else {
-      addToast('Link ainda não configurado pela administração.', 'error');
+      addToast('Link não configurado.', 'error');
+    }
+  };
+
+  const copyIp = () => {
+    if (config?.serverIp) {
+      navigator.clipboard.writeText(config.serverIp);
+      addToast('IP Copiado!', 'success');
     }
   };
 
@@ -43,67 +50,69 @@ export const Start: React.FC = () => {
         <p className="text-gray-500 text-lg font-medium max-w-xl mx-auto">Tudo o que você precisa para entrar na metrópole hoje mesmo.</p>
       </div>
 
-      {/* Platform Selector */}
       <div className="flex justify-center mb-12">
         <div className="bg-dark-800 p-1 rounded-xl inline-flex border border-white/10 shadow-lg">
           <button
             onClick={() => setActiveTab('pc')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-black transition-all text-sm ${
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-black transition-all text-sm uppercase ${
               activeTab === 'pc' ? 'bg-brand-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'
             }`}
           >
-            <Monitor size={18} /> PC / DESKTOP
+            <Monitor size={18} /> PC / Desktop
           </button>
           <button
             onClick={() => setActiveTab('mobile')}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-black transition-all text-sm ${
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-black transition-all text-sm uppercase ${
               activeTab === 'mobile' ? 'bg-brand-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'
             }`}
           >
-            <Smartphone size={18} /> MOBILE
+            <Smartphone size={18} /> Mobile
           </button>
         </div>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
-        {/* Step 1 */}
         <div className="bg-dark-800 p-8 rounded-2xl border border-white/5 group hover:border-brand-500/30 transition-all shadow-xl">
           <div className="w-12 h-12 bg-brand-600 rounded-xl flex items-center justify-center text-white font-black text-lg mb-6">1</div>
           <h3 className="text-xl font-black text-white mb-3 uppercase tracking-tight">O Launcher</h3>
           <p className="text-gray-400 text-sm font-medium mb-6 leading-relaxed">
             {activeTab === 'pc' 
-              ? 'Baixe nosso launcher exclusivo que já inclui o jogo completo pré-configurado.' 
-              : 'Baixe o APK oficial otimizado para celulares Android com FPS desbloqueado.'}
+              ? 'Baixe nosso launcher exclusivo que já inclui o jogo completo.' 
+              : 'Baixe o APK oficial otimizado para celulares Android.'}
           </p>
           <button 
             onClick={() => handleDownload(activeTab)}
-            className="w-full bg-brand-600 hover:bg-brand-500 text-white font-black py-3 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg"
+            className="w-full bg-brand-600 hover:bg-brand-500 text-white font-black py-3 rounded-lg flex items-center justify-center gap-2 transition-all shadow-lg uppercase text-xs"
           >
-            <Download size={18} /> DOWNLOAD
+            <Download size={18} /> Download {activeTab === 'pc' ? 'PC' : 'APK'}
           </button>
         </div>
 
-        {/* Step 2 */}
         <div className="bg-dark-800 p-8 rounded-2xl border border-white/5 group hover:border-brand-500/30 transition-all shadow-xl">
           <div className="w-12 h-12 bg-brand-600 rounded-xl flex items-center justify-center text-white font-black text-lg mb-6">2</div>
           <h3 className="text-xl font-black text-white mb-3 uppercase tracking-tight">Identidade</h3>
           <p className="text-gray-400 text-sm font-medium mb-6 leading-relaxed">
-            Após abrir o launcher, insira seu Nick no formato <span className="text-brand-400 font-bold">Nome_Sobrenome</span>.
+            Abra o jogo e insira seu Nick no formato <span className="text-brand-400 font-bold">Nome_Sobrenome</span>.
           </p>
-          <div className="bg-dark-900/50 p-3 rounded-lg border border-white/5 text-[10px] font-mono text-gray-500">
+          <div className="bg-dark-900/50 p-3 rounded-lg border border-white/5 text-[10px] font-mono text-gray-500 uppercase tracking-widest text-center">
             Exemplo: Bruno_Capitane
           </div>
         </div>
 
-        {/* Step 3 */}
         <div className="bg-dark-800 p-8 rounded-2xl border border-white/5 group hover:border-brand-500/30 transition-all shadow-xl">
           <div className="w-12 h-12 bg-brand-600 rounded-xl flex items-center justify-center text-white font-black text-lg mb-6">3</div>
-          <h3 className="text-xl font-black text-white mb-3 uppercase tracking-tight">Conecte-se</h3>
-          <p className="text-gray-400 text-sm font-medium mb-6 leading-relaxed">
-            Clique no botão "Entrar na Cidade" e prepare-se para escrever sua história.
+          <h3 className="text-xl font-black text-white mb-3 uppercase tracking-tight">Endereço</h3>
+          <p className="text-gray-400 text-sm font-medium mb-4 leading-relaxed">
+            Adicione nosso servidor aos favoritos com o IP abaixo:
           </p>
-          <div className="flex items-center gap-2 text-green-500 font-black text-xs uppercase">
-             <ShieldCheck size={16}/> Conexão Segura
+          <div className="flex flex-col gap-2">
+            <div className="bg-dark-900 border border-white/10 rounded-xl p-3 flex items-center justify-between group">
+              <span className="text-[10px] font-mono text-brand-400 font-black">{config.serverIp || 'AGUARDANDO IP...'}</span>
+              <button onClick={copyIp} className="text-gray-500 hover:text-white"><Copy size={14}/></button>
+            </div>
+            <div className="flex items-center gap-2 text-green-500 font-black text-[9px] uppercase tracking-widest">
+               <ShieldCheck size={14}/> 24/7 Ativo
+            </div>
           </div>
         </div>
       </div>

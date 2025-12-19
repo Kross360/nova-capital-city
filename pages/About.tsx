@@ -28,10 +28,11 @@ export const About: React.FC = () => {
       <div className="max-w-5xl mx-auto relative z-10">
         <div className="text-center mb-16 animate-fade-in-down">
           <h1 className="text-5xl md:text-6xl font-black text-white mb-6 tracking-tighter uppercase leading-none">
-            Quem Somos <br/> <span className="text-brand-500">Capital City</span>
+            {config.aboutTitle?.split(' ').slice(0, 2).join(' ') || 'Quem Somos'} <br/> 
+            <span className="text-brand-500">{config.aboutTitle?.split(' ').slice(2).join(' ') || 'Capital City'}</span>
           </h1>
           <p className="text-gray-500 text-xl font-medium max-w-2xl mx-auto">
-            Nascemos de uma visão: criar o servidor de SA-MP mais estável, justo e imersivo do Brasil.
+            {config.aboutDescription || 'A visão por trás da maior metrópole do SA-MP brasileiro.'}
           </p>
         </div>
 
@@ -40,10 +41,10 @@ export const About: React.FC = () => {
             <div className="space-y-4">
               <h2 className="text-3xl font-black text-white tracking-tight uppercase">Nossa Jornada</h2>
               <p className="text-gray-400 text-lg leading-relaxed font-medium">
-                Desde 2020, trabalhamos incansavelmente para refinar cada sistema de script. Nosso foco não é apenas o jogo, mas a comunidade que o habita.
+                Desde o início, trabalhamos incansavelmente para refinar cada sistema de script. Nosso foco não é apenas o jogo, mas a comunidade que o habita.
               </p>
               <p className="text-gray-500 text-base leading-relaxed">
-                Aqui, cada cidadão tem voz. Nossa economia foi desenhada para garantir que o esforço seja recompensado.
+                Aqui, cada cidadão tem voz. Nossa economia foi desenhada para garantir que o esforço seja recompensado de forma justa.
               </p>
             </div>
             

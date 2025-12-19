@@ -32,6 +32,34 @@ export const StorageService = {
     }
   },
 
+  sendDiscordStatusUpdate: async (webhookUrl: string, payment: PaymentRequest, newStatus: string) => {
+    if (!webhookUrl) return;
+
+    const isApproved = newStatus === 'APPROVED';
+    const embed = {
+      title: isApproved ? "✅ PEDIDO APROVADO!" : "❌ PEDIDO RECUSADO",
+      description: `O status do pedido **${payment.id.slice(0, 8).toUpperCase()}** foi atualizado.`,
+      color: isApproved ? 3066993 : 15158332, // Verde ou Vermelho
+      fields: [
+        { name: "👤 Jogador", value: payment.playerNick, inline: true },
+        { name: "📦 Item", value: payment.itemName, inline: true },
+        { name: "📊 Novo Status", value: isApproved ? "ENTREGAR ITEM" : "REJEITADO", inline: false }
+      ],
+      footer: { text: "Capital City RP - Sistema de Auditoria" },
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ embeds: [embed] })
+      });
+    } catch (e) {
+      console.error("Erro ao enviar webhook de status:", e);
+    }
+  },
+
   // --- SHOP ---
   getShopItems: async (): Promise<ShopItem[]> => {
     const { data, error } = await supabase.from('shop_items').select('*').order('created_at', { ascending: false });
@@ -70,8 +98,7 @@ export const StorageService = {
     if(error) throw error;
   },
   
-  updateShopItem: async (id: string, item: Partial<ShopItem>) => {
-    // Removemos o id e mapeamos para snake_case
+  updateShopItemFixed: async (id: string, item: Partial<ShopItem>) => {
     const payload: any = {};
     if (item.name !== undefined) payload.name = item.name;
     if (item.description !== undefined) payload.description = item.description;
@@ -258,7 +285,7 @@ export const StorageService = {
       playerNick: p.player_nick,
       playerId: p.player_id,
       discordContact: p.discord_contact,
-      proofImageUrl: p.proof_image_url,
+      proof_image_url: p.proof_image_url,
       status: p.status,
       adminNote: p.admin_note,
       createdAt: new Date(p.created_at).toLocaleString('pt-BR'),
@@ -269,11 +296,17 @@ export const StorageService = {
   // --- CONFIG ---
   getConfig: async (): Promise<ServerConfig> => {
     try {
-      const { data, error } = await supabase.from('server_config').select('*').limit(1).single();
-      if (error || !data) throw new Error("No config");
+      const { data, error } = await supabase.from('server_config').select('*').limit(1).maybeSingle();
+      if (error) throw error;
+      if (!data) return {
+        serverIp: '', pcDownloadUrl: '', mobileDownloadUrl: '', discordUrl: '', pixKey: '', pixQrCodeUrl: '',
+        homeBackgroundUrl: '', aboutImageUrl: '', newsDefaultImageUrl: '',
+        capiCoinPrice: 1.0, discordWebhookUrl: ''
+      };
       
       return {
         id: data.id,
+        serverIp: data.server_ip || '',
         pcDownloadUrl: data.pc_download_url || '',
         mobileDownloadUrl: data.mobile_download_url || '',
         discordUrl: data.discord_url || '',
@@ -281,13 +314,16 @@ export const StorageService = {
         pixQrCodeUrl: data.pix_qr_code_url || '',
         homeBackgroundUrl: data.home_background_url || '',
         aboutImageUrl: data.about_image_url || '',
+        aboutTitle: data.about_title || 'Quem Somos Capital City',
+        aboutDescription: data.about_description || 'Nascemos de uma visão: criar o servidor de SA-MP mais estável, justo e imersivo do Brasil.',
         newsDefaultImageUrl: data.news_default_image_url || '',
         capiCoinPrice: data.capi_coin_price || 1.0,
         discordWebhookUrl: data.discord_webhook_url || ''
       };
     } catch (e) {
+      console.error("Erro ao buscar config:", e);
       return {
-        pcDownloadUrl: '', mobileDownloadUrl: '', discordUrl: '', pixKey: '', pixQrCodeUrl: '',
+        serverIp: '', pcDownloadUrl: '', mobileDownloadUrl: '', discordUrl: '', pixKey: '', pixQrCodeUrl: '',
         homeBackgroundUrl: '', aboutImageUrl: '', newsDefaultImageUrl: '',
         capiCoinPrice: 1.0, discordWebhookUrl: ''
       };
@@ -295,9 +331,9 @@ export const StorageService = {
   },
   
   saveConfig: async (config: ServerConfig) => {
-    const { data: existingData } = await supabase.from('server_config').select('id').limit(1);
-    
+    // Definimos os dados convertendo para snake_case (o que o Postgres espera)
     const payload: any = {
+      server_ip: config.serverIp || '',
       pc_download_url: config.pcDownloadUrl || '',
       mobile_download_url: config.mobileDownloadUrl || '',
       discord_url: config.discordUrl || '',
@@ -305,16 +341,26 @@ export const StorageService = {
       pix_qr_code_url: config.pixQrCodeUrl || '',
       home_background_url: config.homeBackgroundUrl || '',
       about_image_url: config.aboutImageUrl || '',
+      about_title: config.aboutTitle || '',
+      about_description: config.aboutDescription || '',
       news_default_image_url: config.newsDefaultImageUrl || '',
       capi_coin_price: Number(config.capiCoinPrice) || 1.0,
       discord_webhook_url: config.discordWebhookUrl || ''
     };
 
-    if (existingData && existingData.length > 0) {
-      const { error } = await supabase.from('server_config').update(payload).eq('id', existingData[0].id);
+    // Tenta atualizar o ID 1 (que garantimos no SQL que existe)
+    // Usamos UPSERT mas omitimos o ID se ele for causar erro, 
+    // ou simplesmente usamos UPDATE fixo no ID 1 que é o mais seguro para Singleton.
+    
+    const { data: check } = await supabase.from('server_config').select('id').eq('id', 1).maybeSingle();
+    
+    if (check) {
+      // Já existe o ID 1, faz apenas o update
+      const { error } = await supabase.from('server_config').update(payload).eq('id', 1);
       if(error) throw error;
     } else {
-      const { error } = await supabase.from('server_config').insert([payload]);
+      // Não existe nada, insere com ID 1 forçado
+      const { error } = await supabase.from('server_config').insert([{ ...payload, id: 1 }]);
       if(error) throw error;
     }
   },

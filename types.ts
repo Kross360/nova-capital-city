@@ -60,6 +60,7 @@ export interface PaymentRequest {
 
 export interface ServerConfig {
   id?: string;
+  serverIp: string;
   pcDownloadUrl: string;
   mobileDownloadUrl: string;
   discordUrl: string;
@@ -67,6 +68,8 @@ export interface ServerConfig {
   pixQrCodeUrl: string;
   homeBackgroundUrl: string;
   aboutImageUrl: string;
+  aboutTitle?: string;
+  aboutDescription?: string;
   newsDefaultImageUrl: string;
   capiCoinPrice: number;
   discordWebhookUrl?: string;
